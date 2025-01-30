@@ -1,1 +1,68 @@
+from flask import Flask, request, jsonify
 
+app = Flask(__name__)
+
+# Mock database (replace with a real database like PostgreSQL or MongoDB)
+snps = {
+    "rs12345": {"snp_id": "rs12345", "gene": "TCF7L2", "population": "European", "risk_allele": "T"},
+    "rs67890": {"snp_id": "rs67890", "gene": "KCNJ11", "population": "Asian", "risk_allele": "C"},
+}
+
+populations = {
+    "European": {"population": "European", "size": 10000, "region": "Europe"},
+    "Asian": {"population": "Asian", "size": 15000, "region": "Asia"},
+}
+
+# Route: Homepage with search functionality
+@app.route("/")
+def home():
+    return """
+    <h1>SNP Search</h1>
+    <form action="/search" method="get">
+        <input type="text" name="query" placeholder="Enter SNP ID or Gene">
+        <button type="submit">Search</button>
+    </form>
+    """
+
+# Route: Search endpoint (uses query parameters)
+@app.route("/search")
+def search():
+    query = request.args.get("query", "").strip().lower()
+
+    # If the query is empty, return an error
+    if not query:
+        return jsonify({"error": "Please enter a valid SNP ID or gene name"}), 400
+
+    # Search for SNPs matching the query (mock implementation)
+    results = []
+    for snp_id, data in snps.items():
+        if query in snp_id.lower() or query in data["gene"].lower():
+            results.append(data)
+
+    # If no results are found, return a 404 error
+    if not results:
+        return jsonify({"error": f"No results found for '{query}'. Please check your input and try again."}), 404
+
+    return jsonify(results)
+
+# Route: Fetch details for a specific SNP (dynamic route)
+@app.route("/snp/<snp_id>")
+def get_snp(snp_id):
+    snp = snps.get(snp_id)
+    if snp:
+        return jsonify(snp)
+    else:
+        return jsonify({"error": f"SNP '{snp_id}' not found. Please check the SNP ID and try again."}), 404
+
+# Route: Fetch population data (dynamic route)
+@app.route("/population/<population_id>")
+def get_population(population_id):
+    population = populations.get(population_id)
+    if population:
+        return jsonify(population)
+    else:
+        return jsonify({"error": f"Population '{population_id}' not found. Please check the population ID and try again."}), 404
+
+# Run the app
+if __name__ == "__main__":
+    app.run(debug=True)
