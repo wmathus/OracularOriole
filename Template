@@ -11,3 +11,25 @@ def index():
 # start the web server
 if __name__ == '__main__':
 	app.run(debug=True)
+
+def home():
+    return """
+    <h1>SNP Search</h1>
+    <form action="/search" method="get">
+        <input type="text" name="query" placeholder="Enter SNP ID or Gene">
+        <button type="submit">Search</button>
+    </form>
+    """
+
+# Route: Search endpoint (uses query parameters)
+@app.route("/search")
+def search():
+    query = request.args.get("query", "").strip().lower()
+
+    # Search for SNPs matching the query (mock implementation)
+    results = []
+    for snp_id, data in snps.items():
+        if query in snp_id.lower() or query in data["gene"].lower():
+            results.append(data)
+
+    return jsonify(results)
