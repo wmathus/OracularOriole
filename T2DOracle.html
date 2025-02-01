@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>T2D Oracle Web Server</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+      padding: 0;
+      background: white;
+    }
+
+    /* Header */
+    .header {
+      padding: 30px;
+      text-align: center;
+      color: white;
+      text-shadow: 0px 2px 5px rgba(0, 0, 0, 0.2);
+      background: linear-gradient(120deg, #68dafd, #967fc3, #ffb6c1);
+      position: relative;
+      width: 100%;
+      margin: 0;
+    }
+
+    .header h1 {
+      color: white;
+      text-shadow: 0px 2px 5px rgba(0, 0, 0, 0.2);
+      font-size: 50px;
+    }
+    
+    .header:hover {
+	    cursor: default;
+    }
+
+    /* Search Bar */
+    .search-container {
+      margin-top: 15px;
+      text-align: center;
+      cursor: default;
+    }
+
+    .search-box {
+      width: 60%;
+      max-width: 500px;
+      padding: 10px;
+      font-size: 16px;
+      border: 1px solid #ccc;
+      border-radius: 25px;
+      outline: none;
+    }
+
+    .search-button {
+      padding: 10px 15px;
+      font-size: 16px;
+      border: none;
+      background-color: #ffa500;
+      color: white;
+      border-radius: 25px;
+      cursor: pointer;
+      margin-left: 5px;
+    }
+
+    .search-button:hover {
+      background-color: #ff8c00;
+    }
+
+    /* Icon Navigation */
+    .icon-nav {
+      display: flex;
+      justify-content: center;
+      margin-top: 20px;
+    }
+
+    .icon-nav a {
+      margin: 0 15px;
+      text-decoration: none;
+    }
+
+    .icon-nav img {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      transition: transform 0.2s ease-in-out;
+    }
+
+    .icon-nav img:hover {
+      transform: scale(1.1);
+    }
+
+    /* Layout */
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      margin-top: 40px; /* Adjusted spacing */
+    }
+
+    .leftcolumn {
+      flex: 3;
+      padding-right: 20px;
+    }
+
+    .rightcolumn {
+      flex: 1;
+      background-color: #f1f1f1;
+      padding-left: 20px;
+    }
+
+    /* Card Style */
+    .card {
+      background-color: white;
+      padding: 20px;
+      margin-bottom: 20px;
+      border-radius: 5px;
+      box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    /* Footer */
+    .footer {
+      padding: 20px;
+      text-align: center;
+      background: #ddd;
+      margin-top: 20px;
+    }
+
+    /* Responsive Design */
+    @media screen and (max-width: 800px) {
+      .row {
+        flex-direction: column;
+      }
+      .leftcolumn, .rightcolumn {
+        padding: 0;
+      }
+    }
+
+    @media screen and (max-width: 400px) {
+      .icon-nav {
+        flex-direction: column;
+      }
+      .icon-nav a {
+        margin-bottom: 10px;
+      }
+    }
+
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h1>T2D Oracle Web Server</h1>
+    <p>Repository of Type 2 Diabetes genomic literature</p>
+    
+    <div class="search-container">
+      <input type="text" class="search-box" placeholder="Search the database...">
+      <button class="search-button">Search</button>
+    </div>
+
+    <!-- Icon-based Navigation -->
+    <div class="icon-nav">
+      <a href="#"><img src="https://placehold.co/40" alt="Icon 1"></a>
+      <a href="#"><img src="https://placehold.co/40" alt="Icon 2"></a>
+      <a href="#"><img src="https://placehold.co/40" alt="Icon 3"></a>
+      <a href="#"><img src="https://placehold.co/40" alt="Icon 4"></a>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="leftcolumn">
+      <div class="card animated-card">
+        <h2>About</h2>
+        <h5>Website designed to shed light into the intricate relationship between T2D phenotypes and ancestry, Jan 2025</h5>
+        <div class="img-placeholder">
+          <img src="https://placehold.co/600x200" alt="Placeholder Image" style="width:100%; border-radius:5px;">
+        </div>
+        <p>Note:</p>
+        <p>This is a prototype.</p>
+      </div>
+    </div>
+
+    <div class="rightcolumn">
+      <div class="card">
+        <h2>References</h2>
+        <p>Numbers</p>
+      </div>
+
+      <div class="card">
+        <h3>Announcements</h3>
+        <div class="img-placeholder">
+          <img src="https://placehold.co/300x100" alt="Placeholder Image" style="width:100%; border-radius:5px;">
+        </div>
+        <div class="img-placeholder">
+          <img src="https://placehold.co/300x100" alt="Placeholder Image" style="width:100%; border-radius:5px;">
+        </div>
+        <div class="img-placeholder">
+          <img src="https://placehold.co/300x100" alt="Placeholder Image" style="width:100%; border-radius:5px;">
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Follow Us</h3>
+        <p>Oracular Oriole</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <h2>Footer</h2>
+  </div>
+
+</body>
+</html>
