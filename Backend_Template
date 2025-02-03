@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 
 app = Flask(__name__)
 
@@ -9,20 +9,28 @@ snps = {
 }
 
 populations = {
-    "European": {"population": "European", "size": 10000, "region": "Europe"},
-    "Asian": {"population": "Asian", "size": 15000, "region": "Asia"},
+    "european": {"population": "European", "size": 10000, "region": "Europe"},
+    "asian": {"population": "Asian", "size": 15000, "region": "Asia"},
 }
 
 # Route: Homepage with search functionality
-@app.route("/")
+@app.route('/')
 def home():
-    return """
-    <h1>SNP Search</h1>
-    <form action="/search" method="get">
-        <input type="text" name="query" placeholder="Enter SNP ID or Gene">
-        <button type="submit">Search</button>
-    </form>
-    """
+    return render_template('frontend.html')
+# @app.route("/")
+# def home():
+#     return """
+#     <h1>SNP Search</h1>
+#     <form action="/search" method="get">
+#         <input type="text" name="query" placeholder="Enter SNP ID or Gene">
+#         <button type="submit">Search</button>
+#     </form>
+#     <h1>Population Search</h1>
+#     <form action="/population" method="get">
+#         <input type="text" name="query" placeholder="Enter Population">
+#         <button type="submit">Search</button>
+#     </form>"""
+
 
 # Route: Search endpoint (uses query parameters)
 @app.route("/search")
@@ -45,18 +53,19 @@ def search():
 
     return jsonify(results)
 
-# Route: Fetch details for a specific SNP (dynamic route)
-@app.route("/snp/<snp_id>")
-def get_snp(snp_id):
-    snp = snps.get(snp_id)
-    if snp:
-        return jsonify(snp)
-    else:
-        return jsonify({"error": f"SNP '{snp_id}' not found. Please check the SNP ID and try again."}), 404
+# Route: Fetch details for a specific SNP (dynamic route), may not be needed.
+# @app.route("/snp/<snp_id>")
+# def get_snp(snp_id):
+#     snp = snps.get(snp_id)
+#     if snp:
+#         return jsonify(snp)
+#     else:
+#         return jsonify({"error": f"SNP '{snp_id}' not found. Please check the SNP ID and try again."}), 404
 
 # Route: Fetch population data (dynamic route)
-@app.route("/population/<population_id>")
-def get_population(population_id):
+@app.route("/population")
+def get_population():
+    population_id = request.args.get("query", "").strip().lower()
     population = populations.get(population_id)
     if population:
         return jsonify(population)
