@@ -156,10 +156,10 @@
     <h1>T2D Oracle Web Server</h1>
     <p>Repository of Type 2 Diabetes genomic literature</p>
     
-    <div class="search-container">
-      <input type="text" class="search-box" placeholder="Search the database...">
-      <button class="search-button">Search</button>
-    </div>
+    <form action="/search" method="GET">
+      <input type="text" name="query" class="search-box" placeholder="Search the database...">
+      <button type="submit" class="search-button">Search</button>
+    </form>
 
     <!-- Icon-based Navigation -->
     <div class="icon-nav">
