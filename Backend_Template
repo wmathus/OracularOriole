@@ -16,7 +16,7 @@ populations = {
 # Route: Homepage with search functionality
 @app.route('/')
 def home():
-    return render_template('frontend.html')
+    return render_template('T2DOracle.html')
 # @app.route("/")
 # def home():
 #     return """
