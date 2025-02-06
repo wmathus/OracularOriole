@@ -1,184 +1,121 @@
--- MySQL dump 10.13  Distrib 5.7.24, for osx11.1 (x86_64)
---
--- Host: localhost    Database: T2D
--- ------------------------------------------------------
--- Server version	9.2.0
+create database ff;
+use ff;
 
-/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
-/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
-/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
-/*!40101 SET NAMES utf8 */;
-/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
-/*!40103 SET TIME_ZONE='+00:00' */;
-/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
-/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
-/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
-/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+CREATE TABLE Phenotype (
+    phenotype_id VARCHAR(50) PRIMARY KEY, -- Unique identifier for phenotypes
+    phenotype_name VARCHAR(100) NOT NULL, -- Name of the phenotype
+    phenotype_description TEXT -- Description of the phenotype
+);
 
---
--- Table structure for table `Gene_Functions`
---
+CREATE TABLE SNPs (
+    snp_id VARCHAR(50) PRIMARY KEY, -- Unique identifier for SNPs
+    chromosome INT NOT NULL, -- Chromosome number
+    alternate_allele VARCHAR(50), -- Alternate alleles
+    p_value FLOAT NOT NULL, -- P-value for significance
+    odds_ratio DECIMAL(10,3), -- Odds ratio
+    source VARCHAR(50), -- Source of the SNP data
+    link TEXT -- Reference link
+);
 
-DROP TABLE IF EXISTS `Gene_Functions`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `Gene_Functions` (
-  `gene_id` int NOT NULL AUTO_INCREMENT,
-  `gene_name` varchar(50) NOT NULL,
-  `function_description` text,
-  PRIMARY KEY (`gene_id`),
-  UNIQUE KEY `gene_name` (`gene_name`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
+CREATE TABLE Gene_Functions (
+    gene_id VARCHAR(50) PRIMARY KEY, -- Unique identifier for genes
+    gene_description TEXT, -- Description of the gene function
+    gene_start BIGINT, -- Start position of the gene
+    gene_end BIGINT, -- End position of the gene
+    ontology TEXT -- Gene ontology
+);
 
---
--- Dumping data for table `Gene_Functions`
---
+CREATE TABLE SNP_Genome (
+    snp_id VARCHAR(50), -- Foreign key referencing SNPs
+    gene_id VARCHAR(50), -- Foreign key referencing Gene_Functions
+    PRIMARY KEY (snp_id, gene_id), -- Composite primary key
+    CONSTRAINT fk_snp_genome_snp FOREIGN KEY (snp_id) REFERENCES SNPs(snp_id) ON DELETE CASCADE,
+    CONSTRAINT fk_snp_genome_gene FOREIGN KEY (gene_id) REFERENCES Gene_Functions(gene_id) ON DELETE CASCADE
+);
 
-LOCK TABLES `Gene_Functions` WRITE;
-/*!40000 ALTER TABLE `Gene_Functions` DISABLE KEYS */;
-/*!40000 ALTER TABLE `Gene_Functions` ENABLE KEYS */;
-UNLOCK TABLES;
 
---
--- Table structure for table `Phenotypes`
---
+CREATE TABLE Phenotype_SNP (
+    phenotype_id VARCHAR(50), -- Foreign key referencing Phenotype
+    snp_id VARCHAR(50), -- Foreign key referencing SNPs
+    PRIMARY KEY (phenotype_id, snp_id), -- Composite primary key
+    CONSTRAINT fk_phenotype_snp_phenotype FOREIGN KEY (phenotype_id) REFERENCES Phenotype(phenotype_id) ON DELETE CASCADE,
+    CONSTRAINT fk_phenotype_snp_snp FOREIGN KEY (snp_id) REFERENCES SNPs(snp_id) ON DELETE CASCADE
+);
 
-DROP TABLE IF EXISTS `Phenotypes`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `Phenotypes` (
-  `phenotype_id` int NOT NULL AUTO_INCREMENT,
-  `phenotype_name` varchar(100) NOT NULL,
-  PRIMARY KEY (`phenotype_id`),
-  UNIQUE KEY `phenotype_name` (`phenotype_name`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
+CREATE TABLE Population (
+    pop_id VARCHAR(50) PRIMARY KEY, -- Unique identifier for populations
+    region VARCHAR(100) NOT NULL, -- Region of the population
+    allele_freq FLOAT -- Allele frequency
+);
 
---
--- Dumping data for table `Phenotypes`
---
+CREATE TABLE Selection_Statistics (
+    snp_id VARCHAR(50), -- Foreign key referencing SNPs
+    pop_id VARCHAR(50), -- Foreign key referencing Population
+    fst_value FLOAT NOT NULL, -- Fixation index value
+    ihs_value FLOAT NOT NULL, -- Integrated haplotype score
+    PRIMARY KEY (snp_id, pop_id), -- Composite primary key
+    CONSTRAINT fk_selection_statistics_snp FOREIGN KEY (snp_id) REFERENCES SNPs(snp_id) ON DELETE CASCADE,
+    CONSTRAINT fk_selection_statistics_pop FOREIGN KEY (pop_id) REFERENCES Population(pop_id) ON DELETE CASCADE
+);
 
-LOCK TABLES `Phenotypes` WRITE;
-/*!40000 ALTER TABLE `Phenotypes` DISABLE KEYS */;
-/*!40000 ALTER TABLE `Phenotypes` ENABLE KEYS */;
-UNLOCK TABLES;
+INSERT INTO Phenotype (phenotype_id, phenotype_name, phenotype_description)
+VALUES
+    ('HBA1C', 'glycated hemoglobin', 'A diabetes marker that measures the amount of glucose attached to the red blood cell''s haemoglobin'),
+    ('HDL', 'High-density lipoprotein', 'Lower HDL cholesterol levels are associated with greater T2D risk'),
+    ('LDL', 'low-density lipoprotein', 'Higher LDL cholesterol levels are associated with greater T2D risk'),
+    ('DR', 'diabetic retinopathy', 'An eye condition that causes damage to the retinal blood vessels due to chronically elevated blood sugar levels from diabetes'),
+    ('BMI', 'body mass index', 'A value derived from the weight and height of a person');
 
---
--- Table structure for table `Populations`
---
+INSERT INTO SNPs (snp_id, chromosome, alternate_allele, p_value, odds_ratio, source, link)
+VALUES
+    ('rs11187138-A', 10, 'C,G', 5e-10, 1.234, 'GWAS', 'https://pmc.ncbi.nlm.nih.gov/articles/PMC9119587/'),
+    ('rs35261542-A', 6, 'A', 5e-10, 1.259, 'GWAS', 'https://pmc.ncbi.nlm.nih.gov/articles/PMC9119587/'),
+    ('rs7903146-T', 10, 'G,T', 2e-17, 1.366, 'GWAS', 'https://pmc.ncbi.nlm.nih.gov/articles/PMC9119587/'),
+    ('rs10916784-G', 1, 'A,C,T', 3e-11, 1.03, 'GWAS', 'https://www.nature.com/articles/s41588-022-01000-8');
 
-DROP TABLE IF EXISTS `Populations`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `Populations` (
-  `pop_id` int NOT NULL AUTO_INCREMENT,
-  `name` varchar(50) NOT NULL,
-  `region` varchar(50) NOT NULL,
-  PRIMARY KEY (`pop_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
+INSERT INTO Gene_Functions (gene_id, gene_description, gene_start, gene_end, ontology)
+VALUES
+    ('HHEX', 'hematopoietically expressed homeobox', 92689955, 92695647, NULL),
+    ('Y_RNA', 'Y RNA', 133337728, 133337824, NULL),
+    ('CDKAL1', 'transcription factor 7 like 2', 112950247, 113167678, NULL),
+    ('LINC01141', 'long intergenic non-protein coding RNA 1141', 20360579, 20439489, NULL),
+    ('MACF1', 'microtubule actin crosslinking factor 1', 39081316, 39487177, NULL);
 
---
--- Dumping data for table `Populations`
---
+INSERT INTO SNP_Genome (snp_id, gene_id)
+VALUES
+    ('rs11187138-A', 'HHEX'),
+    ('rs11187138-A', 'Y_RNA'),
+    ('rs35261542-A', 'CDKAL1'),
+    ('rs7903146-T', 'LINC01141'),
+    ('rs10916784-G', 'MACF1');
+    
+    
+INSERT INTO Phenotype_SNP (phenotype_id, snp_id)
+VALUES
+    ('HBA1C', 'rs11187138-A'),
+    ('HBA1C', 'rs35261542-A'),
+    ('DR', 'rs7903146-T'),
+    ('HBA1C', 'rs10916784-G');
+    
+INSERT INTO Population (pop_id, region, allele_freq)
+VALUES
+    ('pakistani', 'south asian', 2.5);
+    
+INSERT INTO Selection_Statistics (snp_id, pop_id, fst_value, ihs_value)
+VALUES
+    ('rs11187138-A', 'pakistani', 0.24, 2.56),
+    ('rs35261542-A', 'pakistani', 0.19, 1.98),
+    ('rs7903146-T', 'pakistani', 0.31, 2.85),
+    ('rs10916784-G', 'pakistani', 0.21, 2.10);
+    
+SELECT * FROM Phenotype;
+SELECT * FROM SNPs;
+SELECT * FROM Gene_Functions;
+SELECT * FROM SNP_Genome;
+SELECT * FROM Phenotype_SNP;
+SELECT * FROM Population;
+SELECT * FROM Selection_Statistics;
 
-LOCK TABLES `Populations` WRITE;
-/*!40000 ALTER TABLE `Populations` DISABLE KEYS */;
-/*!40000 ALTER TABLE `Populations` ENABLE KEYS */;
-UNLOCK TABLES;
 
---
--- Table structure for table `Selection_Statistics`
---
 
-DROP TABLE IF EXISTS `Selection_Statistics`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `Selection_Statistics` (
-  `stat_id` int NOT NULL AUTO_INCREMENT,
-  `snp_id` varchar(20) NOT NULL,
-  `pop_id` int NOT NULL,
-  `fst_value` float NOT NULL,
-  `ihs_value` float NOT NULL,
-  PRIMARY KEY (`stat_id`),
-  KEY `fk_stat_snp_id` (`snp_id`),
-  KEY `fk_stat_pop_id` (`pop_id`),
-  CONSTRAINT `fk_stat_pop_id` FOREIGN KEY (`pop_id`) REFERENCES `Populations` (`pop_id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_stat_snp_id` FOREIGN KEY (`snp_id`) REFERENCES `SNPs` (`snp_id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
 
---
--- Dumping data for table `Selection_Statistics`
---
-
-LOCK TABLES `Selection_Statistics` WRITE;
-/*!40000 ALTER TABLE `Selection_Statistics` DISABLE KEYS */;
-/*!40000 ALTER TABLE `Selection_Statistics` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
--- Table structure for table `SNP_Phenotype`
---
-
-DROP TABLE IF EXISTS `SNP_Phenotype`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `SNP_Phenotype` (
-  `snp_id` varchar(20) NOT NULL,
-  `phenotype_id` int NOT NULL,
-  PRIMARY KEY (`snp_id`,`phenotype_id`),
-  KEY `fk_phenotype_id` (`phenotype_id`),
-  CONSTRAINT `fk_phenotype_id` FOREIGN KEY (`phenotype_id`) REFERENCES `Phenotypes` (`phenotype_id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_snp_id` FOREIGN KEY (`snp_id`) REFERENCES `SNPs` (`snp_id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `SNP_Phenotype`
---
-
-LOCK TABLES `SNP_Phenotype` WRITE;
-/*!40000 ALTER TABLE `SNP_Phenotype` DISABLE KEYS */;
-/*!40000 ALTER TABLE `SNP_Phenotype` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
--- Table structure for table `SNPs`
---
-
-DROP TABLE IF EXISTS `SNPs`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `SNPs` (
-  `snp_id` varchar(20) NOT NULL,
-  `chromosome` int NOT NULL,
-  `position` int NOT NULL,
-  `gene_name` varchar(50) DEFAULT NULL,
-  `p_value` float NOT NULL,
-  PRIMARY KEY (`snp_id`),
-  KEY `fk_gene_name` (`gene_name`),
-  CONSTRAINT `fk_gene_name` FOREIGN KEY (`gene_name`) REFERENCES `Gene_Functions` (`gene_name`) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `SNPs`
---
-
-LOCK TABLES `SNPs` WRITE;
-/*!40000 ALTER TABLE `SNPs` DISABLE KEYS */;
-/*!40000 ALTER TABLE `SNPs` ENABLE KEYS */;
-UNLOCK TABLES;
-/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
-
-/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
-/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
-/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
-/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
-/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
-/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
-/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
-
--- Dump completed on 2025-02-04 14:51:21
