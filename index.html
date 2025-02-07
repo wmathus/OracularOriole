@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SNP Search - T2D Project</title>
+</head>
+<body>
+    <h1>Search for SNP Data</h1>
+    <form id="snpForm">
+        <label for="searchType">Search by:</label>
+        <select id="searchType">
+            <option value="snp">SNP ID</option>
+            <option value="gene">Gene Name</option>
+        </select>
+
+        <input type="text" id="searchQuery" name="searchQuery" required>
+        <button type="submit">Search</button>
+    </form>
+
+    <h3>Results:</h3>
+    <div id="result"></div>
+    <button id="downloadCSV" style="display:none;">Download CSV</button>
+    <canvas id="pValueChart" width="400" height="200"></canvas>
+
+    <!-- Chart.js Library --> 
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> 
+    <script>
+    document.getElementById("snpForm").addEventListener("submit", function(event) {
+        event.preventDefault();
+        let searchType = document.getElementById("searchType").value;
+        let searchQuery = document.getElementById("searchQuery").value.trim();
+
+        // Fetch SNP data from Flask
+        fetch("/search?snp_type=" + encodeURIComponent(searchType) + "&query=" + encodeURIComponent(searchQuery))
+        .then(response => response.json())
+        .then(data => {
+            let resultDiv = document.getElementById("result");
+            if (data.length === 0) {
+                resultDiv.innerHTML = "<p>No results found.</p>";
+            } else {
+                let resultHTML = `
+                    <table border="1">
+                        <tr>
+                            <th>SNP ID</th>
+                            <th>Gene</th>  
+                            <th>P-Value</th>
+                            <th>Source</th>
+                        </tr>
+                `;
+
+                let snpLabels = [];
+                let pValues = [];
+
+                // Loop through the data and add each row
+                data.forEach(item => {
+                    resultHTML += `
+                        <tr>
+                            <td>${item.snp_id}</td>
+                            <td>${item.gene_name ? item.gene_name : "N/A"}</td>
+                            <td>${item.p_value}</td>
+                            <td>${item.link ? `<a href="${item.link}" target="_blank">Source</a>` : "No link available"}</td>
+                        </tr>
+                    `;
+
+                    // Add data to chart arrays
+                    snpLabels.push(item.snp_id);
+                    pValues.push(parseFloat(item.p_value));
+                });
+
+                resultHTML += "</table>";
+                resultDiv.innerHTML = resultHTML;
+                document.getElementById("downloadCSV").style.display = "block";
+                document.getElementById("downloadCSV").onclick = function() {
+                    let csvData = convertToCSV(data);
+                    let blob = new Blob([csvData], { type: "text/csv" });
+                    let link = document.createElement("a");
+                    link.href = URL.createObjectURL(blob);
+                    link.download = "snp_results.csv";
+                    link.click();
+                };
+                
+                
+                // Create or update the chart
+                createPValueChart(snpLabels, pValues);
+            }
+        })
+        .catch(error => console.error("Error:", error));
+    });
+
+    // Function to create or update the p-value chart
+    function createPValueChart(labels, values) {
+        let ctx = document.getElementById("pValueChart").getContext("2d");
+
+        // Destroy existing chart to prevent overlapping issues
+        if (window.myChart) {
+            window.myChart.destroy();
+        }
+
+        window.myChart = new Chart(ctx, {
+            type: "bar",
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: "SNP P-Values",
+                    data: values,
+                    backgroundColor: "rgba(75, 192, 192, 0.2)",
+                    borderColor: "rgba(75, 192, 192, 1)",
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: "P-Value"
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // function to download CSV files 
+    function convertToCSV(data) {
+    let csv = "SNP ID,Gene,P-Value,Source\n";  // CSV Header
+
+    data.forEach(item => {
+        let source = item.link ? item.link : "No link available";
+        csv += `${item.snp_id},${item.gene_name ? item.gene_name : "N/A"},${item.p_value},${source}\n`;
+    });
+
+    return csv;
+}
+
+</script>
+</body>
+</html>
+              
+                         
+                                  
+                                
+                                            
+
+                
+                    
+                        
+                           
+                               
+                                 
+                                 
+                                  
+                               
+                    
+                     
+                         
+                              
+                                
+                                
+                               
+                           
+                            
+              
+                             
+                      
+               
+            
+            
+
+
