@@ -44,14 +44,35 @@ def search():
         cursor = connection.cursor(dictionary=True) # By default, cursor() returns rows as tuples. When dictionary=True is passed, rows are returned as dictionaries where: Keys are the column names. Values are the corresponding row values.
         
         if search_type == "snp":
-            cursor.execute("SELECT * FROM snps WHERE snp_id = %s", (query,)) # Defines which table is to be used. This is why the SQL structure is very important.
+            cursor.execute("""
+            SELECT snps.snp_id, snps.chromosome, snps.p_value, snps.link, snp_genome.gene_id
+            FROM snps
+            LEFT JOIN snp_genome ON snps.snp_id = snp_genome.snp_id
+            WHERE snps.snp_id = %s
+            """, (query,))# Defines which table is to be used. This is why the SQL structure is very important.
+        
         elif search_type == "gene":
-            cursor.execute("SELECT * FROM snp_genome WHERE gene_id = %s", (query,)) # Defines which table is to be used. This is why the SQL structure is very important. 
-            # We can still use a code similar to what Abi came up with but this way is a bit simpler as we are already able to manipulate SQL, from MySql directly.
+            cursor.execute("""
+            SELECT snps.snp_id, snps.p_value, snps.link, snps.chromosome, snp_genome.gene_id 
+            FROM snp_genome 
+            JOIN snps ON snp_genome.snp_id = snps.snp_id
+            WHERE snp_genome.gene_id = %s 
+            """, (query,)) #Select will create a template for the table. FROM will take the information from that table. Join will join the two tables temporarily, and rows
+        
+        elif search_type == "chromosome": #This needs to be added to the frontend (I think)
+            cursor.execute("""
+             SELECT snps.snp_id, snps.p_value, snps.link, snp_genome.gene_id, snps.chromosome
+             FROM snps
+             JOIN snp_genome ON snps.snp_id = snp_genome.snp_id
+             WHERE snps.chromosome = %s
+             """, (query,))
+                           
+        
         else:
-            return render_template("index.html", search_results=None, manhattan_url=None)
+            return render_template("index.html", search_results=None, manhattan_url=None) #Leaves the webpage blank, resets to home kinda.
 
         results = cursor.fetchall() # Calling cursor dictionary from above.
+        print (results)
         
         manhattan_url = generate_manhattan_plot(results) if results else None # Calling the plot function, why this is called URL will be explained in the fumction below.
         
