@@ -113,7 +113,7 @@
                                 <td>{{ row.genomic_start | default('N/A') }}</td>
                                 <td>{{ row.genomic_end | default('N/A') }}</td>
                                 <td>{{ row.p_value | default('N/A') }}</td> 
-                                <td>{{ row.mapped_gene | default('N/A') }}</td>
+                                <td>{{ row.gene_id | default('N/A') }}</td>
                                 <td>
                                     {% if row.link %}
                                     <a href="{{ row.link }}" target="_blank">Source</a>
