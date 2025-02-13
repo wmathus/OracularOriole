@@ -69,7 +69,7 @@ def search():
         else:
             return render_template("index.html", search_results=None, manhattan_url=None) #Leaves the webpage blank, resets to home kinda.
         
-        global results
+        global results # To be able to use the results table in the download function. This globalizes the variable.
         results = cursor.fetchall() # Calling cursor dictionary from above.
         print (results)
 
@@ -97,10 +97,6 @@ def download_csv():
         return render_template("error.html", message="Database connection failed")
 
     try:
-        #cursor = connection.cursor(dictionary=True) # This should be clearer as it is almost the same with the search method, only some packages needed to be imported.
-        #cursor.execute("SELECT * FROM snps")  # Note that the table name from the SQL is snps and the header row is in the same order as the order comes from the table.
-        #results = cursor.fetchall() # All rows are retrieved, rows are SNPs in this case. See mysql to use other tables for fumctions that retrieve gene function. After that has been mapped.
-
         def generate():
             data = io.StringIO()  # Creates an in-memory buffer (StringIO object) to store CSV data temporarily.
             writer = csv.writer(data) # Transform binary data to csv. Easy Peasy Lemon Squeeky.
@@ -111,7 +107,7 @@ def download_csv():
             data.seek(0) # reset and clear the buffer for the next row
             data.truncate(0)
 
-            # Write rows
+            # Write rows from the results dictionary
             for row in results:
                 writer.writerow([
                     row.get('snp_id', ''),
