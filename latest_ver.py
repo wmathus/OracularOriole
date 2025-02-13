@@ -29,9 +29,7 @@ def search():
     if request.method == "POST": # POST is often used to save username and password. The past queries are stored in the search bar. How it works for the frontend: (e.g., via an HTML <form> with method="POST")  
         search_type = request.form.get("searchType") # This bit is important because we need the plots for the pvalues to be drawn in the time of search submission (e.g., Manhattan plot, or other that you can think of). **We will use a similar structure for population stats. Keep that in mind pls.
         query = request.form.get("search_term", "").strip() # Strip = no unwanted spaces in the search pls >:( **A line can be added here for uppercase and lowercase queries. 
-    else: # In the html if the search method is GET do the same exact same thing.
-        search_type = request.args.get("searchType") # Don't worry about this! It is in case i assigned get as the method in the frontend. Basically a safety net because the frontend is getting complicated. Also to get URLs. I might instead add routes to searched SNP_IDs
-        query = request.args.get("search_term", "").strip() # Strip = no unwanted spaces in the search pls >:(
+   
 
     if not query: # Defines the home page where search hasn't been made. Nothing in the search results. The route here is different therefore this line is still necessary.
         return render_template("index.html", search_results=None, manhattan_url=None)
@@ -71,8 +69,12 @@ def search():
         else:
             return render_template("index.html", search_results=None, manhattan_url=None) #Leaves the webpage blank, resets to home kinda.
 
+        
+        global results # To be able to use the results table in the download function. This globalizes the variable.
         results = cursor.fetchall() # Calling cursor dictionary from above.
         print (results)
+
+
         
         manhattan_url = generate_manhattan_plot(results) if results else None # Calling the plot function, why this is called URL will be explained in the fumction below.
         
@@ -97,30 +99,26 @@ def download_csv():
         return render_template("error.html", message="Database connection failed")
 
     try:
-        cursor = connection.cursor(dictionary=True) # This should be clearer as it is almost the same with the search method, only some packages needed to be imported.
-        cursor.execute("SELECT * FROM snps")  # Note that the table name from the SQL is snps and the header row is in the same order as the order comes from the table.
-        results = cursor.fetchall() # All rows are retrieved, rows are SNPs in this case. See mysql to use other tables for fumctions that retrieve gene function. After that has been mapped.
-
         def generate():
             data = io.StringIO()  # Creates an in-memory buffer (StringIO object) to store CSV data temporarily.
             writer = csv.writer(data) # Transform binary data to csv. Easy Peasy Lemon Squeeky.
             
             # Write header
-            writer.writerow(['SNP_ID', 'Chromosome', 'Alternate_allele' , 'P_Value', 'Odds_ratio', 'source', 'link'])
+            writer.writerow(['SNP_ID', 'Chromosome', 'Genomic_Start' , 'Genomic_End', 'P_Value', 'Mapped Gene', 'Source'])
             yield data.getvalue() # Sends the row to the user. Remember this is a different route.
             data.seek(0) # reset and clear the buffer for the next row
             data.truncate(0)
 
-            # Write rows
+            # Write rows from the results dictionary
             for row in results:
                 writer.writerow([
                     row.get('snp_id', ''),
                     row.get('chromosome', ''),
-                    row.get('alternate_allele', ''),
+                    row.get('genomic_start', ''),
+                    row.get('genomic_end', ''),
                     row.get('p_value', ''),
-                    row.get('odds_ratio', ''),
+                    row.get('gene_id', ''),
                     row.get('source', ''),
-                    row.get('link', ''),
                 ])
                 yield data.getvalue() # Writes each row 
                 data.seek(0)
