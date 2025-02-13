@@ -68,10 +68,12 @@ def search():
         
         else:
             return render_template("index.html", search_results=None, manhattan_url=None) #Leaves the webpage blank, resets to home kinda.
+
         
         global results # To be able to use the results table in the download function. This globalizes the variable.
         results = cursor.fetchall() # Calling cursor dictionary from above.
         print (results)
+
 
         
         manhattan_url = generate_manhattan_plot(results) if results else None # Calling the plot function, why this is called URL will be explained in the fumction below.
