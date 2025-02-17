@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gene Information: {{ gene_info.gene_id }}</title>
+    <!-- Add your CSS and other head elements here -->
+</head>
+<body>
+    <h1>Gene Information: {{ gene_info.gene_id }}</h1>
+    <div>
+        <p><strong>Description:</strong> {{ gene_info.gene_description }}</p>
+        <!--<p><strong>Function:</strong> {{ gene_info.function }}</p>-->
+        <!-- <p><strong>Chromosome:</strong> {{ gene_info.chromosome }}</p>-->
+        <p><strong>Start Position:</strong> {{ gene_info.gene_start }}</p>
+        <p><strong>End Position:</strong> {{ gene_info.gene_end }}</p>
+        <!-- Add more fields as needed -->
+    </div>
+    <a href="/search">Back to Search</a>
+</body>
+</html>
