@@ -9,6 +9,10 @@ import io # To keep in memory search (the past queries) We have to ask do we nee
 import base64 # This is needed for encoding the plot images in the website. Similarly if we want to import any image from google we'd need the URL to be in the frontend.  
 import csv  
 from flask import Response
+import pandas as pd
+import plotly.express as px
+import plotly.io as pio
+from flask import send_from_directory
 
 app = Flask(__name__)
 
@@ -43,26 +47,26 @@ def search():
         
         if search_type == "snp":
             cursor.execute("""
-            SELECT snps.snp_id, snps.chromosome, snps.p_value, snps.link, snp_genome.gene_id
-            FROM snps
-            LEFT JOIN snp_genome ON snps.snp_id = snp_genome.snp_id
-            WHERE snps.snp_id = %s
+            SELECT SNPs.snp_id, SNPs.chromosome, SNPs.p_value, SNPs.link, SNP_Genome.gene_id
+            FROM SNPs
+            LEFT JOIN SNP_Genome ON SNPs.snp_id = SNP_Genome.snp_id
+            WHERE SNPs.snp_id = %s
             """, (query,))# Defines which table is to be used. This is why the SQL structure is very important.
         
         elif search_type == "gene":
             cursor.execute("""
-            SELECT snps.snp_id, snps.p_value, snps.link, snps.chromosome, snp_genome.gene_id 
-            FROM snp_genome 
-            JOIN snps ON snp_genome.snp_id = snps.snp_id
-            WHERE snp_genome.gene_id = %s 
+            SELECT SNPs.snp_id, SNPs.p_value, SNPs.link, SNPs.chromosome, SNP_Genome.gene_id 
+            FROM SNP_Genome 
+            JOIN SNPs ON SNP_Genome.snp_id = SNPs.snp_id
+            WHERE SNP_Genome.gene_id = %s 
             """, (query,)) #Select will create a template for the table. FROM will take the information from that table. Join will join the two tables temporarily, and rows
         
         elif search_type == "chromosome": #This needs to be added to the frontend (I think)
             cursor.execute("""
-             SELECT snps.snp_id, snps.p_value, snps.link, snp_genome.gene_id, snps.chromosome
-             FROM snps
-             JOIN snp_genome ON snps.snp_id = snp_genome.snp_id
-             WHERE snps.chromosome = %s
+             SELECT SNPs.snp_id, SNPs.p_value, SNPs.link, SNPs.chromosome, SNP_Genome.gene_id
+             FROM SNPs
+             JOIN SNP_Genome ON SNPs.snp_id = SNP_Genome.snp_id
+             WHERE SNPs.chromosome = %s
              """, (query,))
                            
         
@@ -74,8 +78,6 @@ def search():
         results = cursor.fetchall() # Calling cursor dictionary from above.
         print (results)
 
-
-        
         manhattan_url = generate_manhattan_plot(results) if results else None # Calling the plot function, why this is called URL will be explained in the fumction below.
         
         return render_template("index.html",
@@ -91,6 +93,36 @@ def search():
         # MySQL has a database connection limit, which is controlled by the "max_connections" system variable; this defines the maximum number of simultaneous client connections allowed to connect to the MySQL server, and the default value is usually around 151 connections depending on the MySQL version. 
         # Consider adding this if the function won't be necessarily continuosly used.
 
+@app.route('/gene/<gene_id>')
+def gene_info(gene_id):
+    connection = get_db_connection()
+    if not connection:
+        return render_template("error.html", message="Database connection failed")
+
+    try:
+        cursor = connection.cursor(dictionary=True)
+
+        # Fetch gene information from the database
+        cursor.execute("""
+        SELECT Gene_Functions.gene_id, Gene_Functions.gene_description, Gene_Functions.gene_start, Gene_Functions.gene_end, SNP_Genome.snp_id
+        FROM Gene_Functions
+        JOIN SNP_Genome ON Gene_Functions.gene_id = SNP_Genome.gene_id
+        WHERE Gene_Functions.gene_id = %s
+        """, (gene_id,))
+
+        gene_info = cursor.fetchone()
+
+        if not gene_info:
+            return render_template("error.html", message="Gene not found")
+
+        return render_template('gene_info.html', gene_info=gene_info)
+
+    except mysql.connector.Error as err:
+        print(f"Database error: {err}")
+        return render_template("error.html", message="Database query failed")
+    finally:
+        if 'cursor' in locals(): cursor.close()
+        if connection.is_connected(): connection.close()
 
 @app.route("/download_csv") # Similar steps are taken as this needs to be defined as a new route. Why? Well, instead of this it is possible to do what Abi did with the initial template where he had to denote html.
 def download_csv():
@@ -183,11 +215,90 @@ def generate_manhattan_plot(results): # Truth be told this can be replaced with 
         plt.close()
         img_buffer.seek(0)
         
-        return f"data:image/png;base64,{base64.b64encode(img_buffer.read()).decode('utf-8')}"
+        return f"data:image/png;base64,{base64.b64encode(img_buffer.read()).decode('utf-8')}" # The URL
 
     except Exception as e:
         app.logger.error(f"Plot generation failed: {str(e)}")
         return None
 
+population_data = {
+    "population_code": ["SAS"] * 60,
+    "population_name": ["South Asian"] * 60,
+    "Ethnicity": ["BPB"] * 6 + ["N/A"] * 20 + ["BPB?"] * 34,
+    "snp_id": ["rs7903146", "rs10830963", "rs2972145", "rs7756992", "rs2191349", "rs9854769",
+               "rs7531962", "rs12463719", "rs7432739", "rs7626079", "rs62366901", "rs74790763",
+               "rs7765207", "rs73689877", "rs2980766", "rs62486442", "rs13257283", "rs2488597",
+               "rs2114824", "rs10748694", "rs7123361", "rs9568861", "rs76141923", "rs28790585",
+               "rs7261425", "rs2065703", "rs11708067", "rs9808924", "rs7766070", "rs10184004",
+               "rs2203452", "rs1260326", "rs35142762", "rs12655753", "rs17036160", "rs13094957",
+               "rs10916784", "rs61748094", "rs329122", "rs2714343", "rs6813195", "rs3775087",
+               "rs13130845", "rs7629245", "rs3887925", "rs13066678", "rs935112", "rs76263492",
+               "rs62259319", "rs1393202", "rs12746673", "rs59689207", "rs61818951", "rs7579323",
+               "rs1012311", "rs10864859", "rs13387347", "rs16849467", "rs9873519", "rs1514895",
+               ],
+    "allele_freq": [0.75, 0.29, 0.54, 0.41, 0.11, 0.32, 0.28, 0.64, 0.60, 0.94, 0.39, 0.12, 0.48, 0.34, 0.92, 0.84, 0.47, 0.42, 0.69, 0.15, 0.01, 0.33, 0.71, 0.15, 0.782, 0.43, 0.266, 0.741, 0.757, 0.754, 0.857, 0.889, 0.881, 0.76, 0.559, 0.967, 0.383, 0.463, 0.618, 0.201, 0.702, 0.24, 0.549, 0.44, 0.882, 0.039, 0.412, 0.052, 0.147, 0.142, 0.044, 0.755, 0.402, 0.941, 0.403, 0.637, 0.286, 0.721, 0.297, 0.164],
+    "sample_size": [22490] * 6 + [197391, 272634, 197391, 197391, 197080, 272634, 197391, 272634, 264876, 190682, 272634, 272634, 271738, 272634, 228651, 272634, 186208, 197391] * 3
+}
+
+# Create a DataFrame
+df = pd.DataFrame(population_data)
+def generate_population_plot(df):
+    try:
+        # Aggregate data by population
+        aggregated_data = df.groupby('population_name').agg({
+            'allele_freq': 'mean',
+            'sample_size': 'sum'
+        }).reset_index()
+
+        # Map population names to coordinates (latitude and longitude)
+        population_coords = {
+            "South Asian": {"lat": 20.5937, "lon": 78.9629}
+        }
+
+        # Add coordinates to the DataFrame
+        aggregated_data['lat'] = aggregated_data['population_name'].map(lambda x: population_coords[x]['lat'])
+        aggregated_data['lon'] = aggregated_data['population_name'].map(lambda x: population_coords[x]['lon'])
+
+        # Create the map using Plotly Express
+        fig = px.scatter_geo(aggregated_data,
+                             lat='lat',
+                             lon='lon',
+                             size='sample_size',
+                             color='allele_freq',
+                             hover_name='population_name',
+                             projection="natural earth",
+                             title='Worldwide Population Distribution')
+
+        # Optionally show the map in a browser (can be commented out in production)
+        # fig.show()
+
+        # Save the map to a file. Here, we're saving to the "templates" folder so that Flask's render_template can find it.
+       # fig.write_html("templates/map.html")
+       # return True
+        # Save the plot as a PNG image
+        # Convert the plot to a base64-encoded image
+        img_buffer = io.BytesIO()
+        fig.write_image(img_buffer, format="png")  # Use kaleido to save as PNG
+        img_buffer.seek(0)
+        img_base64 = base64.b64encode(img_buffer.read()).decode('utf-8')
+        img_url = f"data:image/png;base64,{img_base64}"
+        print("Figure generated successfully!")
+        return img_url  # Return the base64-encoded image URL
+
+    except Exception as e:
+        print(f"Error generating population plot: {e}")
+        return None
+# Define the route globally
+@app.route("/population_map")
+def population_map():
+    # Generate the population plot and get the base64-encoded image URL
+    population_map_url = generate_population_plot(df)
+    if not population_map_url:
+        return render_template("error.html", message="Failed to generate population map")
+
+    # Pass the image URL to the template
+    return render_template("index.html", population_map_url=population_map_url)
+
 if __name__ == "__main__": # Debugging in the command prompt
     app.run(debug=True, host="0.0.0.0", port=8080)
+
