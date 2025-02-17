@@ -47,25 +47,25 @@ def search():
         
         if search_type == "snp":
             cursor.execute("""
-            SELECT SNPs.snp_id, SNPs.chromosome, SNPs.p_value, SNPs.link, SNP_Genome.gene_id
+            SELECT SNPs.snp_id, SNPs.chromosome, SNPs.p_value, SNPs.link, SNP_Gene.gene_id
             FROM SNPs
-            LEFT JOIN SNP_Genome ON SNPs.snp_id = SNP_Genome.snp_id
+            LEFT JOIN SNP_Gene ON SNPs.snp_id = SNP_Gene.snp_id
             WHERE SNPs.snp_id = %s
             """, (query,))# Defines which table is to be used. This is why the SQL structure is very important.
         
         elif search_type == "gene":
             cursor.execute("""
-            SELECT SNPs.snp_id, SNPs.p_value, SNPs.link, SNPs.chromosome, SNP_Genome.gene_id 
-            FROM SNP_Genome 
-            JOIN SNPs ON SNP_Genome.snp_id = SNPs.snp_id
+            SELECT SNPs.snp_id, SNPs.p_value, SNPs.link, SNPs.chromosome, SNP_Gene.gene_id 
+            FROM SNP_Gene 
+            JOIN SNPs ON SNP_Gene.snp_id = SNPs.snp_id
             WHERE SNP_Genome.gene_id = %s 
             """, (query,)) #Select will create a template for the table. FROM will take the information from that table. Join will join the two tables temporarily, and rows
         
         elif search_type == "chromosome": #This needs to be added to the frontend (I think)
             cursor.execute("""
-             SELECT SNPs.snp_id, SNPs.p_value, SNPs.link, SNPs.chromosome, SNP_Genome.gene_id
+             SELECT SNPs.snp_id, SNPs.p_value, SNPs.link, SNPs.chromosome, SNP_Gene.gene_id
              FROM SNPs
-             JOIN SNP_Genome ON SNPs.snp_id = SNP_Genome.snp_id
+             JOIN SNP_Gene ON SNPs.snp_id = SNP_Gene.snp_id
              WHERE SNPs.chromosome = %s
              """, (query,))
                            
@@ -104,9 +104,9 @@ def gene_info(gene_id):
 
         # Fetch gene information from the database
         cursor.execute("""
-        SELECT Gene_Functions.gene_id, Gene_Functions.gene_description, Gene_Functions.gene_start, Gene_Functions.gene_end, SNP_Genome.snp_id
+        SELECT Gene_Functions.gene_id, Gene_Functions.gene_description, Gene_Functions.gene_start, Gene_Functions.gene_end, SNP_Gene.snp_id
         FROM Gene_Functions
-        JOIN SNP_Genome ON Gene_Functions.gene_id = SNP_Genome.gene_id
+        JOIN SNP_Gene ON Gene_Functions.gene_id = SNP_Gene.gene_id
         WHERE Gene_Functions.gene_id = %s
         """, (gene_id,))
 
@@ -301,4 +301,5 @@ def population_map():
 
 if __name__ == "__main__": # Debugging in the command prompt
     app.run(debug=True, host="0.0.0.0", port=8080)
+
 
