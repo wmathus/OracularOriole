@@ -18,3 +18,5 @@ If you want to run this project locally, follow these steps:
 1. **Check if you have Git installed** (run this command in your terminal or command prompt):  
    ```sh
    git --version
+
+2. **Download the zip file** 
