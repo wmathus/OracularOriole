@@ -58,7 +58,7 @@ def search():
             SELECT SNPs.snp_id, SNPs.p_value, SNPs.link, SNPs.chromosome, SNP_Gene.gene_id 
             FROM SNP_Gene 
             JOIN SNPs ON SNP_Gene.snp_id = SNPs.snp_id
-            WHERE SNP_Genome.gene_id = %s 
+            WHERE SNP_Gene.gene_id = %s 
             """, (query,)) #Select will create a template for the table. FROM will take the information from that table. Join will join the two tables temporarily, and rows
         
         elif search_type == "chromosome": #This needs to be added to the frontend (I think)
