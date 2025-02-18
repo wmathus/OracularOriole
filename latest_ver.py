@@ -43,31 +43,34 @@ def search():
         return render_template("error.html", message="Database connection failed")
 
     try:
-        cursor = connection.cursor(dictionary=True) # By default, cursor() returns rows as tuples. When dictionary=True is passed, rows are returned as dictionaries where: Keys are the column names. Values are the corresponding row values.
+        cursor = connection.cursor(dictionary=True)
         
         if search_type == "snp":
             cursor.execute("""
-            SELECT SNPs.snp_id, SNPs.chromosome, SNPs.p_value, SNPs.link, SNP_Gene.gene_id
+            SELECT SNPs.snp_id, SNPs.chromosome, SNPs.p_value, SNPs.link, SNP_Gene.gene_id, Gene_Functions.gene_start, Gene_Functions.gene_end
             FROM SNPs
             LEFT JOIN SNP_Gene ON SNPs.snp_id = SNP_Gene.snp_id
+            LEFT JOIN Gene_Functions ON SNP_Gene.gene_id = Gene_Functions.gene_id
             WHERE SNPs.snp_id = %s
-            """, (query,))# Defines which table is to be used. This is why the SQL structure is very important.
+            """, (query,))
         
         elif search_type == "gene":
             cursor.execute("""
-            SELECT SNPs.snp_id, SNPs.p_value, SNPs.link, SNPs.chromosome, SNP_Gene.gene_id 
+            SELECT SNPs.snp_id, SNPs.p_value, SNPs.link, SNPs.chromosome, SNP_Gene.gene_id, Gene_Functions.gene_start, Gene_Functions.gene_end
             FROM SNP_Gene 
             JOIN SNPs ON SNP_Gene.snp_id = SNPs.snp_id
+            JOIN Gene_Functions ON SNP_Gene.gene_id = Gene_Functions.gene_id
             WHERE SNP_Gene.gene_id = %s 
-            """, (query,)) #Select will create a template for the table. FROM will take the information from that table. Join will join the two tables temporarily, and rows
+            """, (query,))
         
-        elif search_type == "chromosome": #This needs to be added to the frontend (I think)
+        elif search_type == "chromosome":
             cursor.execute("""
-             SELECT SNPs.snp_id, SNPs.p_value, SNPs.link, SNPs.chromosome, SNP_Gene.gene_id
-             FROM SNPs
-             JOIN SNP_Gene ON SNPs.snp_id = SNP_Gene.snp_id
-             WHERE SNPs.chromosome = %s
-             """, (query,))
+            SELECT SNPs.snp_id, SNPs.p_value, SNPs.link, SNPs.chromosome, SNP_Gene.gene_id, Gene_Functions.gene_start, Gene_Functions.gene_end
+            FROM SNPs
+            JOIN SNP_Gene ON SNPs.snp_id = SNP_Gene.snp_id
+            JOIN Gene_Functions ON SNP_Gene.gene_id = Gene_Functions.gene_id
+            WHERE SNPs.chromosome = %s
+            """, (query,))
                            
         
         else:
@@ -76,7 +79,7 @@ def search():
         
         global results # To be able to use the results table in the download function. This globalizes the variable.
         results = cursor.fetchall() # Calling cursor dictionary from above.
-        print (results)
+        print (results) #Remove this in the final edit, used to see the dictionary structure of the data retrieved from SQL. 
 
         manhattan_url = generate_manhattan_plot(results) if results else None # Calling the plot function, why this is called URL will be explained in the fumction below.
         
