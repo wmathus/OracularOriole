@@ -1,1 +1,133 @@
+import pandas as pd
+import numpy as np
 
+# Example dataset
+data = {
+    "snp_id": [
+        "rs7903146", "rs10830963", "rs2972145", "rs2972145", "rs7756992",
+        "rs2191349", "rs2191349", "rs9854769", "rs7531962", "rs7531962",
+        "rs12463719", "rs12463719", "rs7432739", "rs7626079", "rs62366901",
+        "rs62366901", "rs74790763", "rs74790763", "rs7765207", "rs73689877",
+        "rs73689877", "rs2980766", "rs62486442", "rs13257283", "rs2488597"
+    ],
+    "gene_id": [
+        "TCF7L2", "MTNR1B", "NYAP2", "MIR5702", "CDKAL1", "AGMO", "GTF3AP5",
+        "IGF2BP2", "CHD1L", "LINC00624", "MTCO1P17", "BMPR2", "PXK", "SLC25A26",
+        "EMB", "PARP8", "CEP120", "PRDM6", "NHSL1", "LINC01450", "SUGCT",
+        "LINC02950", "LINC03019", "ZFPM2", "STRBP"
+    ]
+}
+
+# Convert to DataFrame
+df = pd.DataFrame(data)
+
+# Simulate chromosome numbers (1-22 for autosomes)
+df["chromosome"] = np.random.randint(1, 23, size=len(df))
+
+# Simulate genomic positions (random positions for demonstration)
+df["position"] = np.random.randint(1e6, 100e6, size=len(df))
+
+# Simulate p-values (random values for demonstration)
+df["p_value"] = np.random.rand(len(df))
+
+# Add -log10(p-value) column for plotting
+df["-log10(p)"] = -np.log10(df["p_value"])
+
+print(df.head())
+
+import matplotlib.pyplot as plt
+
+# Define colors for chromosomes
+colors = ["red", "blue", "green", "orange", "purple", "brown", "pink", "gray", "cyan", "magenta"]
+
+# Create the plot
+plt.figure(figsize=(14, 8))
+
+# Plot each chromosome separately
+for chrom, color in zip(df["chromosome"].unique(), colors):
+    subset = df[df["chromosome"] == chrom]
+    plt.scatter(subset["position"], subset["-log10(p)"], color=color, label=f"Chr {chrom}")
+
+# Add significance threshold line (p < 5e-8)
+plt.axhline(y=-np.log10(5e-8), color="black", linestyle="--", label="Significance Threshold (p < 5e-8)")
+
+# Customize the plot
+plt.xlabel("Genomic Position")
+plt.ylabel("-log10(p-value)")
+plt.title("Manhattan Plot")
+plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left")  # Move legend outside the plot
+plt.tight_layout()  # Adjust layout to prevent overlap
+plt.show()
+
+import plotly.express as px
+
+# Create an interactive Manhattan plot
+fig = px.scatter(
+    df,
+    x="position",
+    y="-log10(p)",
+    color="chromosome",
+    labels={"position": "Genomic Position", "-log10(p)": "-log10(p-value)"},
+    title="Manhattan Plot",
+    hover_data=["snp_id", "gene_id"]  # Add hover information
+)
+
+# Add significance threshold line
+fig.add_hline(y=-np.log10(5e-8), line_dash="dash", line_color="black", annotation_text="p < 5e-8")
+
+# Customize layout
+fig.update_layout(
+    xaxis_title="Genomic Position",
+    yaxis_title="-log10(p-value)",
+    legend_title="Chromosome",
+    hovermode="x unified"
+)
+
+# Show the plot
+fig.show()
+
+# Integration onto the wesbite 
+from flask import Flask, jsonify
+
+app = Flask(__name__)
+
+@app.route("/data")
+def get_data():
+    return jsonify(df.to_dict(orient="records"))
+
+if __name__ == "__main__":
+    app.run(debug=True)
+
+import React, { useEffect, useState } from "react";
+import Plotly from "plotly.js";
+
+const ManhattanPlot = () => {
+  const [data, setData] = useState([]);
+
+  useEffect(() => {
+    fetch("/data")
+      .then((response) => response.json())
+      .then((data) => {
+        const plotData = data.map((d) => ({
+          x: d.position,
+          y: d["-log10(p)"],
+          text: `SNP: ${d.snp_id}<br>Gene: ${d.gene_id}`,
+          mode: "markers",
+          marker: { color: d.chromosome },
+        }));
+
+        const layout = {
+          title: "Manhattan Plot",
+          xaxis: { title: "Genomic Position" },
+          yaxis: { title: "-log10(p-value)" },
+          hovermode: "closest",
+        };
+
+        Plotly.newPlot("manhattan-plot", plotData, layout);
+      });
+  }, []);
+
+  return <div id="manhattan-plot"></div>;
+};
+
+export default ManhattanPlot;
