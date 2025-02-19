@@ -1,3 +1,4 @@
+            <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -109,8 +110,8 @@
                             <tr>
                                 <td>{{ row.snp_id }}</td>
                                 <td>{{ row.chromosome | default('N/A') }}</td>
-                                <td>{{ row.genomic_start | default('N/A') }}</td>
-                                <td>{{ row.genomic_end | default('N/A') }}</td>
+                                <td>{{ row.gene_start | default('N/A') }}</td>
+                                <td>{{ row.gene_end | default('N/A') }}</td>
                                 <td>{{ row.p_value | default('N/A') }}</td>
                                 <td>
                                     {% if row.gene_id %}
@@ -160,12 +161,24 @@
                 {% else %}
                 <p>No Manhattan plot available</p>
                 {% endif %}
+                {% if phenotype_pie_chart_url %}
+                <h2 class="mt-3">Phenotype Frequency Pie Chart</h2>
+                <div class="d-flex justify-content-end">
+                    <img src="{{ phenotype_pie_chart_url }}" class="img-fluid" alt="Phenotype Pie Chart">
+                </div>
+                {% endif %}
             </div>
 
             <div class="tab-pane fade" id="population">
                 <h3 class="mt-3">Population Distribution</h3>
-                <div class="text-center mt-3">
-                    <a href="{{ url_for('population_map') }}" class="btn btn-info btn-lg">Explore Population Statistics</a>
+                <div class="dropdown">
+                    <button class="btn btn-info btn-lg dropdown-toggle" type="button" id="populationDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                        Explore Population Statistics
+                    </button>
+                    <ul class="dropdown-menu" aria-labelledby="populationDropdown">
+                        <li><a class="dropdown-item" href="{{ url_for('population_map') }}">South Asian</a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('other_population_data') }}">Other Population Data</a></li>
+                    </ul>
                 </div>
                 <div id="distribution-plot" class="text-center mt-3">
                     <!-- Display the population map image -->
