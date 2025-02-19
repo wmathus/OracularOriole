@@ -32,7 +32,7 @@ def home(): # Defines the home page where search hasn't been made. Nothing in th
 def search():
     if request.method == "POST": # POST is often used to save username and password. The past queries are stored in the search bar. How it works for the frontend: (e.g., via an HTML <form> with method="POST")  
         search_type = request.form.get("searchType") # This bit is important because we need the plots for the pvalues to be drawn in the time of search submission (e.g., Manhattan plot, or other that you can think of). **We will use a similar structure for population stats. Keep that in mind pls.
-        query = request.form.get("search_term", "").strip() # Strip = no unwanted spaces in the search pls >:( **A line can be added here for uppercase and lowercase queries. 
+        query = request.form.get("search_term", "").strip() # Strip = no unwanted spaces in the search pls >:( **A line can be added here for uppercase and lowercase queries. Nevermind SQL handles them. 
    
 
     if not query: # Defines the home page where search hasn't been made. Nothing in the search results. The route here is different therefore this line is still necessary.
@@ -43,7 +43,7 @@ def search():
         return render_template("error.html", message="Database connection failed")
 
     try:
-        cursor = connection.cursor(dictionary=True)
+        cursor = connection.cursor(dictionary=True, buffered=True)
         
         if search_type == "snp":
             cursor.execute("""
@@ -53,7 +53,17 @@ def search():
             LEFT JOIN Gene_Functions ON SNP_Gene.gene_id = Gene_Functions.gene_id
             WHERE SNPs.snp_id = %s
             """, (query,))
-        
+         # Fetch raw phenotype data for the given SNP from your phenotype table
+         
+            cursor2 = connection.cursor(dictionary=True, buffered=True)
+            cursor2.execute("""
+            SELECT snp_id, phenotype_id
+            FROM Phenotype_SNP
+            WHERE snp_id = %s
+            """, (query,))
+            phenotype_results = cursor2.fetchall()
+            cursor2.close()
+
         elif search_type == "gene":
             cursor.execute("""
             SELECT SNPs.snp_id, SNPs.p_value, SNPs.link, SNPs.chromosome, SNP_Gene.gene_id, Gene_Functions.gene_start, Gene_Functions.gene_end
@@ -62,6 +72,8 @@ def search():
             JOIN Gene_Functions ON SNP_Gene.gene_id = Gene_Functions.gene_id
             WHERE SNP_Gene.gene_id = %s 
             """, (query,))
+            
+            phenotype_results = [] # You get Unbound Local error if discarded
         
         elif search_type == "chromosome":
             cursor.execute("""
@@ -71,22 +83,29 @@ def search():
             JOIN Gene_Functions ON SNP_Gene.gene_id = Gene_Functions.gene_id
             WHERE SNPs.chromosome = %s
             """, (query,))
-                           
+           
+            phenotype_results = [] # You get Unbound Local error if discarded             
         
-        else:
-            return render_template("index.html", search_results=None, manhattan_url=None) #Leaves the webpage blank, resets to home kinda.
+        #else:
+         #   return render_template("index.html", search_results=None, manhattan_url=None) #Leaves the webpage blank, resets to home kinda.
 
-        
+        else:
+            return render_template("index.html", search_results=None, manhattan_url=None, phenotype_pie_chart_url=None)
         global results # To be able to use the results table in the download function. This globalizes the variable.
         results = cursor.fetchall() # Calling cursor dictionary from above.
         print (results) #Remove this in the final edit, used to see the dictionary structure of the data retrieved from SQL. 
 
+           
         manhattan_url = generate_manhattan_plot(results) if results else None # Calling the plot function, why this is called URL will be explained in the fumction below.
-        
-        return render_template("index.html",
-                             search_results=results,
-                             manhattan_url=manhattan_url)
+        # Generate phenotype pie chart URL from raw data (if available)
+        phenotype_pie_chart_url = generate_phenotype_pie_chart_from_data(phenotype_results) if phenotype_results else None
 
+        return render_template("index.html",
+                                search_results=results,
+                                manhattan_url=manhattan_url,
+                                phenotype_pie_chart_url=phenotype_pie_chart_url)
+        # ... you could include similar logic for other search types (e.g., gene, chromosome)
+        
     except mysql.connector.Error as err: 
         print(f"Database error: {err}") # Displays the error type from MySql.
         return render_template("error.html", message="Database query failed")
@@ -139,7 +158,7 @@ def download_csv():
             writer = csv.writer(data) # Transform binary data to csv. Easy Peasy Lemon Squeeky.
             
             # Write header
-            writer.writerow(['SNP_ID', 'Chromosome', 'Genomic_Start' , 'Genomic_End', 'P_Value', 'Mapped Gene', 'Source'])
+            writer.writerow(['SNP_ID', 'Chromosome', 'Gene_Start' , 'Gene_End', 'P_Value', 'Mapped Gene', 'Link'])
             yield data.getvalue() # Sends the row to the user. Remember this is a different route.
             data.seek(0) # reset and clear the buffer for the next row
             data.truncate(0)
@@ -149,11 +168,11 @@ def download_csv():
                 writer.writerow([
                     row.get('snp_id', ''),
                     row.get('chromosome', ''),
-                    row.get('genomic_start', ''),
-                    row.get('genomic_end', ''),
+                    row.get('gene_start', ''),
+                    row.get('gene_end', ''),
                     row.get('p_value', ''),
                     row.get('gene_id', ''),
-                    row.get('source', ''),
+                    row.get('link', ''),
                 ])
                 yield data.getvalue() # Writes each row 
                 data.seek(0)
@@ -222,6 +241,72 @@ def generate_manhattan_plot(results): # Truth be told this can be replaced with 
 
     except Exception as e:
         app.logger.error(f"Plot generation failed: {str(e)}")
+        return None
+
+def generate_phenotype_pie_chart_from_data(phenotype_results):
+    try:
+        if not phenotype_results:
+            return None
+
+        # Convert the raw results to a Pandas DataFrame
+        df = pd.DataFrame(phenotype_results)
+
+        # Group by 'phenotype' and count the number of occurrences for each
+        count_series = df.groupby('phenotype_id').size()
+        total_count = count_series.sum()
+
+        # Calculate the relative frequency (proportion) for each phenotype
+        frequency = count_series / total_count
+
+        # Convert the frequency series into a DataFrame with columns 'phenotype' and 'frequency'
+        df_freq = frequency.reset_index(name='frequency')
+
+        # Retrieve phenotype explanations, names, and IDs from the database
+        connection = get_db_connection()
+        if connection:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("""
+                SELECT phenotype_id, phenotype_name, phenotype_description 
+                FROM Phenotype
+            """)
+            explanation_results = cursor.fetchall()
+            cursor.close()
+            connection.close()
+            explanation_df = pd.DataFrame(explanation_results)
+        else:
+            explanation_df = pd.DataFrame()
+
+        # Merge the explanations with the frequency data.
+        # If no explanation is found, fallback to showing only the phenotype ID.
+        if not explanation_df.empty:
+            df_freq = df_freq.merge(explanation_df, on='phenotype_id', how='left')
+            df_freq['phenotype_name'] = df_freq['phenotype_name'].fillna("Unknown Phenotype")
+            df_freq['phenotype_description'] = df_freq['phenotype_description'].fillna("No description available")
+        else:
+            df_freq['phenotype_name'] = "Unknown Phenotype"
+            df_freq['phenotype_description'] = "No description available"
+
+        # Create a new column for displaying full labels in the pie chart
+        df_freq['label'] = df_freq.apply(
+            lambda row: f"ID: {row['phenotype_id']} - {row['phenotype_name']}<br>{row['phenotype_description']}", axis=1
+        )
+        
+        # Create a pie chart using Plotly Express with enhanced labels
+        title = f"Phenotype Frequencies for SNP {df['snp_id'].iloc[0]}"
+        fig = px.pie(df_freq, names='label', values='frequency', title=title)
+        fig.update_layout(width=1000, height=800)
+        # Save the figure to an in-memory buffer (requires kaleido installed)
+        img_buffer = io.BytesIO()
+        fig.write_image(img_buffer, format="png")
+        img_buffer.seek(0)
+
+        # Encode the image in base64 so it can be embedded directly into HTML
+        img_base64 = base64.b64encode(img_buffer.read()).decode('utf-8')
+        img_url = f"data:image/png;base64,{img_base64}"
+        return img_url
+
+    except Exception as e:
+        print(f"Error generating phenotype pie chart: {e}")
         return None
 
 population_data = {
@@ -302,7 +387,10 @@ def population_map():
     # Pass the image URL to the template
     return render_template("index.html", population_map_url=population_map_url)
 
+@app.route("/other_population_data")
+def other_population_data():
+    # Add the logic for this endpoint
+    return render_template(None)
+
 if __name__ == "__main__": # Debugging in the command prompt
     app.run(debug=True, host="0.0.0.0", port=8080)
-
-
