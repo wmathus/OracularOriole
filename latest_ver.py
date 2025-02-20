@@ -30,6 +30,9 @@ def home(): # Defines the home page where search hasn't been made. Nothing in th
 
 @app.route("/search", methods=["GET", "POST"]) # **The POST option is required so that we can save the query submission for further analysis. GET only displays the table.
 def search():
+    query = ""  # Initialize query with a default value; for gene info back to search function
+    search_type = ""  # Initialize search_type with a default value; for gene info back to search function
+    
     if request.method == "POST": # POST is often used to save username and password. The past queries are stored in the search bar. How it works for the frontend: (e.g., via an HTML <form> with method="POST")  
         search_type = request.form.get("searchType") # This bit is important because we need the plots for the pvalues to be drawn in the time of search submission (e.g., Manhattan plot, or other that you can think of). **We will use a similar structure for population stats. Keep that in mind pls.
         query = request.form.get("search_term", "").strip() # Strip = no unwanted spaces in the search pls >:( **A line can be added here for uppercase and lowercase queries. Nevermind SQL handles them. 
