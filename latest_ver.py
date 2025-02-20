@@ -129,16 +129,19 @@ def gene_info(gene_id):
 
         # Fetch gene information from the database
         cursor.execute("""
-        SELECT Gene_Functions.gene_id, Gene_Functions.gene_description, Gene_Functions.gene_start, Gene_Functions.gene_end, SNP_Gene.snp_id
+        SELECT Gene_Functions.gene_id, Gene_Functions.gene_description, Gene_Functions.ensembl_id, Gene_Functions.gene_start, Gene_Functions.gene_end, SNP_Gene.snp_id, Gene_GO.go_id, Gene_GO.go_description
         FROM Gene_Functions
-        JOIN SNP_Gene ON Gene_Functions.gene_id = SNP_Gene.gene_id
+        LEFT JOIN SNP_Gene ON Gene_Functions.gene_id = SNP_Gene.gene_id LEFT JOIN Gene_GO ON Gene_Functions.gene_id = Gene_GO.gene_id
         WHERE Gene_Functions.gene_id = %s
         """, (gene_id,))
 
-        gene_info = cursor.fetchone()
-
-        if not gene_info:
-            return render_template("error.html", message="Gene not found")
+        rows = cursor.fetchall()
+        # Process the first row (if it exists)
+        if rows:
+            gene_info = rows[0]  # Get the first row
+            print("Gene info is:", gene_info)
+        else:
+            print("No gene found with ID:", gene_id)
 
         return render_template('gene_info.html', gene_info=gene_info)
 
