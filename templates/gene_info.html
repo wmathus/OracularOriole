@@ -9,13 +9,15 @@
 <body>
     <h1>Gene Information: {{ gene_info.gene_id }}</h1>
     <div>
-        <p><strong>Description:</strong> {{ gene_info.gene_description }}</p>
-        <!--<p><strong>Function:</strong> {{ gene_info.function }}</p>-->
+        <p><strong>Gene Ontology ID:</strong> {{ gene_info.go_id }}</p>
+        <p><strong>Gene Ontology Description:</strong> {{ gene_info.go_description }}</p>
+        <p><strong>Gene Description:</strong> {{ gene_info.gene_description }}</p>
+        <P><strong> Ensembl ID:</strong> {{ gene_info.ensembl_id }}</p>
         <!-- <p><strong>Chromosome:</strong> {{ gene_info.chromosome }}</p>-->
         <p><strong>Start Position:</strong> {{ gene_info.gene_start }}</p>
         <p><strong>End Position:</strong> {{ gene_info.gene_end }}</p>
         <!-- Add more fields as needed -->
     </div>
-    <a href="/search">Back to Search</a>
+    <a href="{{ url_for('search') }}">Back to Search</a>
 </body>
 </html>
