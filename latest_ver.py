@@ -84,8 +84,8 @@ def search():
             FROM SNPs
             JOIN SNP_Gene ON SNPs.snp_id = SNP_Gene.snp_id
             JOIN Gene_Functions ON SNP_Gene.gene_id = Gene_Functions.gene_id
-            WHERE SNPs.chromosome = %s
-            """, (query,))
+            WHERE SNPs.chromosome = %s OR Gene_Functions.gene_start = %s OR Gene_Functions.gene_end = %s
+            """, (query,query,query))
            
             phenotype_results = [] # You get Unbound Local error if discarded             
         
