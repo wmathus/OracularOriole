@@ -50,12 +50,13 @@ def search():
         
         if search_type == "snp":
             cursor.execute("""
-            SELECT SNPs.snp_id, SNPs.chromosome, SNPs.p_value, SNPs.link, SNP_Gene.gene_id, Gene_Functions.gene_start, Gene_Functions.gene_end
+            SELECT SNPs.snp_id, SNPs.chromosome, SNPs.p_value, SNPs.odds_ratio, SNPs.link, SNP_Gene.gene_id, Gene_Functions.gene_start, Gene_Functions.gene_end
             FROM SNPs
             LEFT JOIN SNP_Gene ON SNPs.snp_id = SNP_Gene.snp_id
             LEFT JOIN Gene_Functions ON SNP_Gene.gene_id = Gene_Functions.gene_id
             WHERE SNPs.snp_id = %s
             """, (query,))
+         
          # Fetch raw phenotype data for the given SNP from your phenotype table
          
             cursor2 = connection.cursor(dictionary=True, buffered=True)
@@ -69,51 +70,117 @@ def search():
 
         elif search_type == "gene":
             cursor.execute("""
-            SELECT SNPs.snp_id, SNPs.p_value, SNPs.link, SNPs.chromosome, SNP_Gene.gene_id, Gene_Functions.gene_start, Gene_Functions.gene_end
+            SELECT SNPs.snp_id, SNPs.p_value, SNPs.odds_ratio, SNPs.link, SNPs.chromosome, SNP_Gene.gene_id, Gene_Functions.gene_start, Gene_Functions.gene_end
             FROM SNP_Gene 
             JOIN SNPs ON SNP_Gene.snp_id = SNPs.snp_id
             JOIN Gene_Functions ON SNP_Gene.gene_id = Gene_Functions.gene_id
             WHERE SNP_Gene.gene_id = %s 
             """, (query,))
             
-            phenotype_results = [] # You get Unbound Local error if discarded
+            # For phenotype data in the gene search, first extract the SNP IDs from the results
+           # snp_results_temp = cursor.fetchall()
+           # snp_ids = [row["snp_id"] for row in snp_results_temp]
+            # Reset the cursor with the SNP results to be used later
+            global results
+            snp_results_temp = cursor.fetchall()
+            print("Fetched SNP Results:", snp_results_temp)  # Debugging
+
+            if not snp_results_temp:
+                print("No SNP results found for the given query")
+                return render_template("index.html", search_results=None, phenotype_table_html=None)
+
+            snp_ids = [row["snp_id"] for row in snp_results_temp]
+            results = snp_results_temp  # Store for later use
+            print(results)
+
+            if snp_ids:
+                cursor2 = connection.cursor(dictionary=True, buffered=True)
+                # Use IN clause to get phenotype data for all SNPs related to the gene
+                format_strings = ','.join(['%s'] * len(snp_ids))
+                phenotype_query = f"""
+                    SELECT snp_id, phenotype_id
+                    FROM Phenotype_SNP
+                    WHERE snp_id IN ({format_strings})
+                    """
+                print("Phenotype Query:", phenotype_query)  # Print generated query
+                print("Query Parameters:", tuple(snp_ids))
+                cursor2.execute(phenotype_query, tuple(snp_ids))
+                phenotype_results = cursor2.fetchall()
+                cursor2.close()
+                print("Phenotype Results:", phenotype_results)
+            else:
+                print("No SNPs found for the given query.")
+                phenotype_results = []
+
+            # Since we already fetched the results above, skip the default fetch later.
+            cursor = None
+
         
         elif search_type == "chromosome":
             cursor.execute("""
-            SELECT SNPs.snp_id, SNPs.p_value, SNPs.link, SNPs.chromosome, SNP_Gene.gene_id, Gene_Functions.gene_start, Gene_Functions.gene_end
+            SELECT SNPs.snp_id, SNPs.p_value, SNPs.odds_ratio, SNPs.link, SNPs.chromosome, SNP_Gene.gene_id, Gene_Functions.gene_start, Gene_Functions.gene_end
             FROM SNPs
             JOIN SNP_Gene ON SNPs.snp_id = SNP_Gene.snp_id
             JOIN Gene_Functions ON SNP_Gene.gene_id = Gene_Functions.gene_id
             WHERE SNPs.chromosome = %s OR Gene_Functions.gene_start = %s OR Gene_Functions.gene_end = %s
             """, (query,query,query))
            
-            phenotype_results = [] # You get Unbound Local error if discarded             
+            # For phenotype data in chromosome search, extract SNP IDs first
+            snp_results_temp = cursor.fetchall()
+            snp_ids = [row["snp_id"] for row in snp_results_temp]
+            results = snp_results_temp
+
+            if snp_ids:
+                cursor2 = connection.cursor(dictionary=True, buffered=True)
+                format_strings = ','.join(['%s'] * len(snp_ids))
+                phenotype_query = f"""
+                    SELECT snp_id, phenotype_id
+                    FROM Phenotype_SNP
+                    WHERE snp_id IN ({format_strings})
+                    """
+                cursor2.execute(phenotype_query, tuple(snp_ids))
+                phenotype_results = cursor2.fetchall()
+                cursor2.close()
+            else:
+                phenotype_results = []
+            cursor = None  # results already captured          
         
         #else:
          #   return render_template("index.html", search_results=None, manhattan_url=None) #Leaves the webpage blank, resets to home kinda.
 
-        else:
-            return render_template("index.html", search_results=None, manhattan_url=None, phenotype_pie_chart_url=None)
-        global results # To be able to use the results table in the download function. This globalizes the variable.
-        results = cursor.fetchall() # Calling cursor dictionary from above.
-        print (results) #Remove this in the final edit, used to see the dictionary structure of the data retrieved from SQL. 
+       # else:
+       #     return render_template("index.html", search_results=None, manhattan_url=None, phenotype_table_html=None)
+        # To be able to use the results table in the download function. This globalizes the variable.
+        # If we haven't already set results (for gene and chromosome, we set it already)
+              
+        if cursor is not None:
+            results = cursor.fetchall()
+            
+        # If no valid search_type was found, return empty page
+        if search_type not in ["snp", "gene", "chromosome"]:
+            return render_template("index.html", search_results=None, manhattan_url=None, phenotype_table_html=None)
 
-           
+   
         manhattan_url = generate_manhattan_plot(results) if results else None # Calling the plot function, why this is called URL will be explained in the fumction below.
         # Generate phenotype pie chart URL from raw data (if available)
-        phenotype_pie_chart_url = generate_phenotype_pie_chart_from_data(phenotype_results) if phenotype_results else None
+        # Generate the phenotype table DataFrame using your helper function
+        table_df = generate_phenotype_table(phenotype_results)
+
+        # Convert the DataFrame to an HTML table.
+        # You can add Bootstrap classes (or your own) for styling.
+        phenotype_table_html = table_df.to_html(classes="table table-striped", index=False)
 
         return render_template("index.html",
-                                search_results=results,
-                                manhattan_url=manhattan_url,
-                                phenotype_pie_chart_url=phenotype_pie_chart_url)
+                       search_results=results,
+                       manhattan_url=manhattan_url,
+                       phenotype_table_html=phenotype_table_html)
         # ... you could include similar logic for other search types (e.g., gene, chromosome)
         
     except mysql.connector.Error as err: 
         print(f"Database error: {err}") # Displays the error type from MySql.
         return render_template("error.html", message="Database query failed")
     finally: # This ensures that resources are released and connections are closed.  
-        if 'cursor' in locals(): cursor.close() # Regardless of if the cursor is empty or full. The connection is closed. It might give an error if it is empty otherwvise.
+        if 'cursor' in locals() and cursor is not None: cursor.close() # Regardless of if the cursor is empty or full. The connection is closed. It might give an error if it is empty otherwvise.
         if connection.is_connected(): connection.close() # If the connection is already closed (e.g., due to an error), calling connection.close() again would raise an exception. Hence "is_connected". 
         # MySQL has a database connection limit, which is controlled by the "max_connections" system variable; this defines the maximum number of simultaneous client connections allowed to connect to the MySQL server, and the default value is usually around 151 connections depending on the MySQL version. 
         # Consider adding this if the function won't be necessarily continuosly used.
@@ -164,7 +231,7 @@ def download_csv():
             writer = csv.writer(data) # Transform binary data to csv. Easy Peasy Lemon Squeeky.
             
             # Write header
-            writer.writerow(['SNP_ID', 'Chromosome', 'Gene_Start' , 'Gene_End', 'P_Value', 'Mapped Gene', 'Link'])
+            writer.writerow(['SNP_ID', 'Chromosome', 'Gene_Start' , 'Gene_End', 'P_Value', 'Odds_Ratio', 'Mapped Gene', 'Link'])
             yield data.getvalue() # Sends the row to the user. Remember this is a different route.
             data.seek(0) # reset and clear the buffer for the next row
             data.truncate(0)
@@ -177,6 +244,7 @@ def download_csv():
                     row.get('gene_start', ''),
                     row.get('gene_end', ''),
                     row.get('p_value', ''),
+                    row.get('odds_ratio', ''),
                     row.get('gene_id', ''),
                     row.get('link', ''),
                 ])
@@ -209,32 +277,48 @@ def generate_manhattan_plot(results): # Truth be told this can be replaced with 
             try:
                 chrom = str(row.get("chromosome", ""))
                 pval = float(row.get("p_value", 1.0))
-                valid_data.append((chrom, pval))
+                gstart = float(row.get("gene_start", 1.0))
+                gend = float(row.get("gene_end", 1.0))
+                valid_data.append((chrom, gstart, gend, pval))
             except (ValueError, TypeError) as e:
                 app.logger.error(f"Invalid data row: {row} - Error: {str(e)}")
                 continue
 
         if not valid_data:
             return None
+        valid_data = pd.DataFrame(valid_data, columns=["chromosome", "gstart", "gend", "p_value"])
+        valid_data["midpoint"] = (valid_data["gstart"] + valid_data["gend"]) / 2    
+        valid_data["-log10(p)"] = -np.log10(valid_data["p_value"])
+        colors = ["red", "blue", "green", "orange", "purple", "brown", "pink", "gray", "cyan", "magenta"]
+    # chromosomes, p_values = zip(*valid_data)# Plot each chromosome separately
 
-        chromosomes, p_values = zip(*valid_data)
+        unique_chromosomes = valid_data["chromosome"].unique()
+        chrom_color_map = {chrom: colors[i % len(colors)] for i, chrom in enumerate(unique_chromosomes)}
 
+        # Create Manhattan plot
+        plt.figure(figsize=(14, 8))
+        for chrom in unique_chromosomes:
+            subset = valid_data[valid_data["chromosome"] == chrom]
+            plt.scatter(subset["midpoint"], subset["-log10(p)"], 
+                        color=chrom_color_map[chrom], label=f"Chr {chrom}", alpha=0.6, edgecolors='w', linewidth=0.5)
+
+        plt.axhline(y=-np.log10(5e-8), color='r', linestyle='--', linewidth=1, label="Genome-wide significance")
         # Convert chromosomes to numeric indices
-        unique_chrom = sorted(set(chromosomes), key=lambda x: (x.isdigit(), int(x) if x.isdigit() else x))
-        chrom_dict = {chrom: idx+1 for idx, chrom in enumerate(unique_chrom)}
-        numeric_chrom = [chrom_dict[chrom] for chrom in chromosomes]
+       # unique_chrom = sorted(set(chromosomes), key=lambda x: (x.isdigit(), int(x) if x.isdigit() else x))
+       # chrom_dict = {chrom: idx+1 for idx, chrom in enumerate(unique_chrom)}
+       # numeric_chrom = [chrom_dict[chrom] for chrom in chromosomes]
 
         # Create plot
-        plt.figure(figsize=(12, 6))
-        plt.scatter(numeric_chrom, -np.log10(p_values), 
-                    c=numeric_chrom, cmap='viridis', alpha=0.6, edgecolors='w', linewidth=0.5)
+        plt.figure(figsize=(14, 8))
+
         
         plt.axhline(y=-np.log10(5e-8), color='r', linestyle='--', linewidth=1)
 
-        plt.colorbar(ticks=range(1, len(unique_chrom)+1), label='Chromosome', format=plt.FixedFormatter(unique_chrom))
-        plt.xlabel('Chromosome')
-        plt.ylabel('-log10(p-value)')
+
+        plt.xlabel("Genomic Position")
+        plt.ylabel('-log10(p-value)') 
         plt.title('Manhattan Plot')
+        plt.tight_layout()  # Adjust layout to prevent overlap
         plt.grid(True, alpha=0.3)
 
         # Save to buffer
@@ -249,25 +333,15 @@ def generate_manhattan_plot(results): # Truth be told this can be replaced with 
         app.logger.error(f"Plot generation failed: {str(e)}")
         return None
 
-def generate_phenotype_pie_chart_from_data(phenotype_results):
+def generate_phenotype_table(phenotype_results):
     try:
         if not phenotype_results:
-            return None
+            return pd.DataFrame(columns=["SNP ID", "Phenotype Name", "Phenotype Description"])
 
         # Convert the raw results to a Pandas DataFrame
         df = pd.DataFrame(phenotype_results)
 
-        # Group by 'phenotype' and count the number of occurrences for each
-        count_series = df.groupby('phenotype_id').size()
-        total_count = count_series.sum()
-
-        # Calculate the relative frequency (proportion) for each phenotype
-        frequency = count_series / total_count
-
-        # Convert the frequency series into a DataFrame with columns 'phenotype' and 'frequency'
-        df_freq = frequency.reset_index(name='frequency')
-
-        # Retrieve phenotype explanations, names, and IDs from the database
+        # Retrieve phenotype names and descriptions from the database
         connection = get_db_connection()
         if connection:
             cursor = connection.cursor(dictionary=True)
@@ -275,45 +349,37 @@ def generate_phenotype_pie_chart_from_data(phenotype_results):
                 SELECT phenotype_id, phenotype_name, phenotype_description 
                 FROM Phenotype
             """)
-            explanation_results = cursor.fetchall()
+            phenotype_info = cursor.fetchall()
             cursor.close()
             connection.close()
-            explanation_df = pd.DataFrame(explanation_results)
+
+            phenotype_df = pd.DataFrame(phenotype_info)
+
+            # Merge the phenotype information with the results
+            df = df.merge(phenotype_df, on="phenotype_id", how="left")
+
+            # Fill missing values for unknown phenotype names/descriptions
+            df["phenotype_name"] = df["phenotype_name"].fillna("Unknown Phenotype")
+            df["phenotype_description"] = df["phenotype_description"].fillna("No description available")
+
         else:
-            explanation_df = pd.DataFrame()
+            df["phenotype_name"] = "Unknown Phenotype"
+            df["phenotype_description"] = "No description available"
 
-        # Merge the explanations with the frequency data.
-        # If no explanation is found, fallback to showing only the phenotype ID.
-        if not explanation_df.empty:
-            df_freq = df_freq.merge(explanation_df, on='phenotype_id', how='left')
-            df_freq['phenotype_name'] = df_freq['phenotype_name'].fillna("Unknown Phenotype")
-            df_freq['phenotype_description'] = df_freq['phenotype_description'].fillna("No description available")
-        else:
-            df_freq['phenotype_name'] = "Unknown Phenotype"
-            df_freq['phenotype_description'] = "No description available"
+        # Keep only relevant columns for display
+        df = df[["snp_id", "phenotype_name", "phenotype_description"]]
+        df.rename(columns={"snp_id": "SNP ID", "phenotype_name": "Phenotype Name", "phenotype_description": "Phenotype Description"}, inplace=True)
 
-        # Create a new column for displaying full labels in the pie chart
-        df_freq['label'] = df_freq.apply(
-            lambda row: f"ID: {row['phenotype_id']} - {row['phenotype_name']}<br>{row['phenotype_description']}", axis=1
-        )
-        
-        # Create a pie chart using Plotly Express with enhanced labels
-        title = f"Phenotype Frequencies for SNP {df['snp_id'].iloc[0]}"
-        fig = px.pie(df_freq, names='label', values='frequency', title=title)
-        fig.update_layout(width=1000, height=800)
-        # Save the figure to an in-memory buffer (requires kaleido installed)
-        img_buffer = io.BytesIO()
-        fig.write_image(img_buffer, format="png")
-        img_buffer.seek(0)
-
-        # Encode the image in base64 so it can be embedded directly into HTML
-        img_base64 = base64.b64encode(img_buffer.read()).decode('utf-8')
-        img_url = f"data:image/png;base64,{img_base64}"
-        return img_url
+        return df
 
     except Exception as e:
-        print(f"Error generating phenotype pie chart: {e}")
-        return None
+        print(f"Error generating phenotype table: {e}")
+        return pd.DataFrame(columns=["SNP ID", "Phenotype Name", "Phenotype Description"])
+
+
+    except Exception as e:
+        print(f"Error generating phenotype table: {e}")
+        return pd.DataFrame()
 
 population_data = {
     "population_code": ["SAS"] * 60,
@@ -396,7 +462,7 @@ def population_map():
 @app.route("/other_population_data")
 def other_population_data():
     # Add the logic for this endpoint
-    return render_template(None)
+    return render_template("None")
 
 if __name__ == "__main__": # Debugging in the command prompt
     app.run(debug=True, host="0.0.0.0", port=8080)
