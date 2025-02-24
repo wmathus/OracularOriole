@@ -266,8 +266,8 @@ def download_csv():
         if 'cursor' in locals(): cursor.close()
         if connection.is_connected(): connection.close()
 
-def generate_manhattan_plot(results): # Truth be told this can be replaced with any other statistics you come up with. Improvement point: Add this to the search route so that all queries can be compared with one another.
-    try: # Not terribly important if you have a better idea, add whatever stats you see fit. Placeholder at the moment. Keep in mind io to temporarily play with the data here and base 64 need to be used to display the graph (Binary to URL).  
+def generate_manhattan_plot(results):
+    try:
         if not results:
             return None
 
@@ -286,12 +286,14 @@ def generate_manhattan_plot(results): # Truth be told this can be replaced with 
 
         if not valid_data:
             return None
+
+        # Create DataFrame from valid data
         valid_data = pd.DataFrame(valid_data, columns=["chromosome", "gstart", "gend", "p_value"])
         valid_data["midpoint"] = (valid_data["gstart"] + valid_data["gend"]) / 2    
         valid_data["-log10(p)"] = -np.log10(valid_data["p_value"])
-        colors = ["red", "blue", "green", "orange", "purple", "brown", "pink", "gray", "cyan", "magenta"]
-    # chromosomes, p_values = zip(*valid_data)# Plot each chromosome separately
 
+        # Define colors for chromosomes
+        colors = ["red", "blue", "green", "orange", "purple", "brown", "pink", "gray", "cyan", "magenta"]
         unique_chromosomes = valid_data["chromosome"].unique()
         chrom_color_map = {chrom: colors[i % len(colors)] for i, chrom in enumerate(unique_chromosomes)}
 
@@ -302,32 +304,26 @@ def generate_manhattan_plot(results): # Truth be told this can be replaced with 
             plt.scatter(subset["midpoint"], subset["-log10(p)"], 
                         color=chrom_color_map[chrom], label=f"Chr {chrom}", alpha=0.6, edgecolors='w', linewidth=0.5)
 
+        # Plot genome-wide significance line
         plt.axhline(y=-np.log10(5e-8), color='r', linestyle='--', linewidth=1, label="Genome-wide significance")
-        # Convert chromosomes to numeric indices
-       # unique_chrom = sorted(set(chromosomes), key=lambda x: (x.isdigit(), int(x) if x.isdigit() else x))
-       # chrom_dict = {chrom: idx+1 for idx, chrom in enumerate(unique_chrom)}
-       # numeric_chrom = [chrom_dict[chrom] for chrom in chromosomes]
 
-        # Create plot
-        plt.figure(figsize=(14, 8))
-
-        
-        plt.axhline(y=-np.log10(5e-8), color='r', linestyle='--', linewidth=1)
-
-
+        # Add labels and grid
         plt.xlabel("Genomic Position")
-        plt.ylabel('-log10(p-value)') 
-        plt.title('Manhattan Plot')
-        plt.tight_layout()  # Adjust layout to prevent overlap
+        plt.ylabel("-log10(p-value)")
+        plt.title("Manhattan Plot")
+        plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
         plt.grid(True, alpha=0.3)
+        plt.tight_layout()  # Adjust layout to prevent overlap
 
-        # Save to buffer
+        # Save plot to a buffer
         img_buffer = io.BytesIO()
         plt.savefig(img_buffer, format='png', dpi=300, bbox_inches='tight')
         plt.close()
         img_buffer.seek(0)
-        
-        return f"data:image/png;base64,{base64.b64encode(img_buffer.read()).decode('utf-8')}" # The URL
+
+        # Encode image to Base64 string
+        img_base64 = base64.b64encode(img_buffer.read()).decode('utf-8')
+        return f"data:image/png;base64,{img_base64}"
 
     except Exception as e:
         app.logger.error(f"Plot generation failed: {str(e)}")
