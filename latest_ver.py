@@ -156,10 +156,13 @@ def search():
         if cursor is not None:
             results = cursor.fetchall()
             
-        # If no valid search_type was found, return empty page
-        if search_type not in ["snp", "gene", "chromosome"]:
-            return render_template("index.html", search_results=None, manhattan_url=None, phenotype_table_html=None)
-
+        if not results:
+            error_message = "No results found for your query. Please try a different search term."
+            return render_template("index.html",
+                           search_results=None,
+                           manhattan_url=None,
+                           phenotype_table_html=None,
+                           error_message=error_message)
    
         manhattan_url = generate_manhattan_plot(results) if results else None # Calling the plot function, why this is called URL will be explained in the fumction below.
         # Generate phenotype pie chart URL from raw data (if available)
@@ -173,8 +176,8 @@ def search():
         return render_template("index.html",
                        search_results=results,
                        manhattan_url=manhattan_url,
-                       phenotype_table_html=phenotype_table_html)
-        # ... you could include similar logic for other search types (e.g., gene, chromosome)
+                       phenotype_table_html=phenotype_table_html,
+                       error_message=None)
         
     except mysql.connector.Error as err: 
         print(f"Database error: {err}") # Displays the error type from MySql.
