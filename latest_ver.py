@@ -85,9 +85,6 @@ def search():
             snp_results_temp = cursor.fetchall()
             print("Fetched SNP Results:", snp_results_temp)  # Debugging
 
-            if not snp_results_temp:
-                print("No SNP results found for the given query")
-                return render_template("index.html", search_results=None, phenotype_table_html=None)
 
             snp_ids = [row["snp_id"] for row in snp_results_temp]
             results = snp_results_temp  # Store for later use
