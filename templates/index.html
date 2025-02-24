@@ -1,4 +1,4 @@
-            <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -12,8 +12,9 @@
             position: fixed;
             top: 0;
             left: 0;
-            color: #f4912f;
+            color: #0e2841;
             background-color: white;
+            background-image: url('/static/images/background.png'); /* Add the image as background */
             z-index: 1050;
             display: flex;
             align-items: center;
@@ -22,14 +23,16 @@
             transition: transform 0.6s ease-in-out;
             overflow-y: auto;
         }
-
         .hidden {
-            transform: translateY(-100%);
+        transform:                      translateY(-100%);
+ 
         }
 
         .main-content {
             padding: 20px;
             margin-top: 60px;
+            color: #0e2841;
+            border-radius: 10px;     
         }
 
         .back-button {
@@ -40,14 +43,97 @@
             display: none;
         }
 
-        .btn-primary {
-            background-color: #87CEFA;
-            border-color: #87CEFA;
-            color: #fff;
+        .btn-success {
+            background-color: #0e2841;
+            color:#fff;
+            border-color:transparent;
         }
-
+        .btn-success:hover{
+            background-color:#1a3a5a;
+            color: white;
+            border-color: transparent;
+      }
         .table-responsive {
             overflow-x: auto;
+        }
+        .form-select {
+            border-radius: 60px;
+        }
+        /* Back Button */
+        .back-button {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            z-index: 1100;
+            display: none;
+            background-color: #0e2841;
+            color: 	#fff;
+            border: none;
+            border-radius: 30px;
+            padding: 10px 20px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .back-button:hover {
+            background-color: #1a3a5a;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+        }
+
+        .btn-primary {
+            background-color: #87CEFA;
+            border: none;
+            border-radius: 30px;
+            padding: 10px 20px;
+            color: white;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+        }
+        .btn-warning {
+            background-color: 	#ffd34f;
+            border: none;
+            border-radius: 30px;
+            padding: 10px 20px;
+            color: ;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+        }
+        .btn-primary:hover {
+            background-color: #6cb2e0;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+        }
+
+
+/* Cards */
+        .card {
+            background-color: white;
+            border-radius: 20px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .card h3 {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #0e2841;
+        }
+
+/* Footer */
+        .footer {
+            text-align: center;
+            margin-top: 20px;
+            color: #0e2841;
+            font-size: 0.9rem;
+        }
+
+/* Animations */
+        .animated-card {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .animated-card:hover {
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
         }
     </style>
 </head>
@@ -56,7 +142,7 @@
     <!-- Full screen Sidebar  -->
     <div class="full-screen-sidebar" id="sidebar">
         <div class="container text-center">
-            <h2 class="mt-4">T2D Genomic Explorer: Ancestry, Selection, and Functional Insights for <i> Type 2 Diabetes</i></i></h2>
+            <h2 class="mt-4">T2D Oracle: Ancestry, Selection, and Functional Insights for <i> Type 2 Diabetes</i></i></h2>
             <p>Use the dropdown menu below to search SNPs by SNP ID, genomic location, or mapped gene.</p>
            
 
@@ -76,14 +162,14 @@
                         <select id="searchType" name="searchType" class="form-select">
                             <option value="snp" {% if request.form.searchType == 'snp' %}selected{% endif %}>SNP ID</option>
                             <option value="gene" {% if request.form.searchType == 'gene' %}selected{% endif %}>Gene Name</option>
-                            <option value="chromosome" {% if request.form.searchType == 'chromosome' %}selected{% endif %}>Chromosomal Location</option>
+                            <option value="chromosome" {% if request.form.searchType == 'chromosome' %}selected{% endif %}>Genomic Location</option>
                         </select>
                     </div>
 
                     <div class="col-md-6">
                         <label class="form-label">Search</label>
                         <input type="text" name="search_term" class="form-control" 
-                               placeholder="e.g. rs35261542-A; CDKAL1; 6p22.3"
+                               placeholder="e.g. rs35261542; CDKAL1; (chromosome number or basepair start or basepair end)"
                                value="{{ request.form.search_term | default('') }}">
                     </div>
                 </div>
@@ -103,7 +189,7 @@
                                 <th>P-Value</th>
                                 <th>Odds Ratio</th>
                                 <th>Mapped Gene</th>
-                                <th>Source</th>
+                                <th>Reference</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -124,7 +210,7 @@
                                 </td>
                                 <td>
                                     {% if row.link %}
-                                    <a href="{{ row.link }}" target="_blank">Source</a>
+                                    <a href="{{ row.link }}" target="_blank">Reference</a>
                                     {% else %}
                                     N/A
                                     {% endif %}
@@ -161,7 +247,7 @@
                 <!-- Row for side-by-side cards -->
                 
                     <!-- Left Column: Manhattan Plot -->
-                    <div class="col-md-6" data-aos="fade-up" data-aos-duration="1000">
+                    <div class="col-md-auto" data-aos="fade-up" data-aos-duration="1000">
                         <div class="card animated-card">
                             <h3>Manhattan Plot</h3>
                             {% if manhattan_url %}
@@ -172,7 +258,7 @@
                         </div>
                     </div>
                     <!-- Right Column: Phenotype Table -->
-                    <div class="col-md-6" data-aos="fade-up" data-aos-duration="1000" data-aos-delay="200">
+                    <div class="col-md-auto" data-aos="fade-up" data-aos-duration="1000" data-aos-delay="200">
                         <div class="card animated-card">
                             <h3>Phenotype Table</h3>
                             {% if phenotype_table_html %}
