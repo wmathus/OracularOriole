@@ -1,0 +1,172 @@
+import pandas as pd
+import plotly.express as px
+import json
+
+# Sample data from the extended table
+data = {
+    "population_code": ["SAS"] * 60,
+    "population_name": ["South Asian"] * 60,
+    "Ethnicity": ["BPB"] * 6 + ["N/A"] * 20 + ["BPB?"] * 34,
+    "snp_id": ["rs7903146", "rs10830963", "rs2972145", "rs7756992", "rs2191349", "rs9854769",
+               "rs7531962", "rs12463719", "rs7432739", "rs7626079", "rs62366901", "rs74790763",
+               "rs7765207", "rs73689877", "rs2980766", "rs62486442", "rs13257283", "rs2488597",
+               "rs2114824", "rs10748694", "rs7123361", "rs9568861", "rs76141923", "rs28790585",
+               "rs7261425", "rs2065703", "rs11708067", "rs9808924", "rs7766070", "rs10184004",
+               "rs2203452", "rs1260326", "rs35142762", "rs12655753", "rs17036160", "rs13094957",
+               "rs10916784", "rs61748094", "rs329122", "rs2714343", "rs6813195", "rs3775087",
+               "rs13130845", "rs7629245", "rs3887925", "rs13066678", "rs935112", "rs76263492",
+               "rs62259319", "rs1393202", "rs12746673", "rs59689207", "rs61818951", "rs7579323",
+               "rs1012311", "rs10864859", "rs13387347", "rs16849467", "rs9873519", "rs1514895",
+               "rs34311866", "rs13142804"],
+    "allele_freq": [0.3, 0.41, 0.75, 0.29, 0.54, 0.41, 0.11, 0.32, 0.28, 0.64, 0.60, 0.94, 0.39, 0.12, 0.48, 0.34, 0.92, 0.84, 0.47, 0.42, 0.69, 0.15, 0.01, 0.33, 0.71, 0.15, 0.782, 0.43, 0.266, 0.741, 0.757, 0.754, 0.857, 0.889, 0.881, 0.76, 0.559, 0.967, 0.383, 0.463, 0.618, 0.201, 0.702, 0.24, 0.549, 0.44, 0.882, 0.039, 0.412, 0.052, 0.147, 0.142, 0.044, 0.755, 0.402, 0.941, 0.403, 0.637, 0.286, 0.721, 0.297, 0.164],
+    "sample_size": [22490] * 6 + [197391, 272634, 197391, 197391, 197080, 272634, 197391, 272634, 264876, 190682, 272634, 272634, 271738, 272634, 228651, 272634, 186208, 197391, 272634, 197391, 41577] * 3
+}
+
+# Create a DataFrame
+df = pd.DataFrame(data)
+
+# Aggregate data by population
+aggregated_data = df.groupby('population_name').agg({
+    'allele_freq': 'mean',
+    'sample_size': 'sum'
+}).reset_index()
+
+# Map population names to coordinates (latitude and longitude)
+population_coords = {
+    "South Asian": {"lat": 20.5937, "lon": 78.9629, "Ethnicity": "BPB"},
+    "Sri Lankan": {"lat": 7.8731, "lon": 80.7718, "Ethnicity": "SLK"},
+    "Japanese": {"lat": 36.2048, "lon": 138.2529, "Ethnicity": "JPN"}
+}
+
+# Add coordinates to the DataFrame
+aggregated_data['lat'] = aggregated_data['population_name'].map(lambda x: population_coords[x]['lat'])
+aggregated_data['lon'] = aggregated_data['population_name'].map(lambda x: population_coords[x]['lon'])
+aggregated_data['Ethnicity'] = aggregated_data['population_name'].map(lambda x: population_coords[x]['Ethnicity'])
+
+# Load GeoJSON data for Asia
+with open('asia.geojson') as f:
+    asia_geojson = json.load(f)
+
+# Create the map
+fig = px.scatter_geo(aggregated_data,
+                     lat='lat',
+                     lon='lon',
+                     size='sample_size',
+                     color='allele_freq',
+                     hover_name='population_name',
+                     projection="natural earth",
+                     title='Population Distribution in Asia',
+                     scope="asia",
+                     featureidkey="properties.NAME")
+
+# Update layout to focus on Asia
+fig.update_geos(
+    visible=False,
+    resolution=50,
+    showcountries=True,
+    countrycolor="Black",
+    showsubunits=True,
+    subunitcolor="Blue"
+)
+
+# Add custom data for clickable regions
+for region in ["South Asian", "Sri Lankan", "Japanese"]:
+    fig.add_trace(
+        px.scatter_geo(
+            pd.DataFrame({
+                'population_name': [region],
+                'lat': [population_coords[region]['lat']],
+                'lon': [population_coords[region]['lon']],
+                'Ethnicity': [population_coords[region]['Ethnicity']]
+            }),
+            lat='lat',
+            lon='lon',
+            hover_name='population_name',
+            custom_data=['population_name', 'Ethnicity']
+        ).data[0]
+    )
+
+# Update traces to show custom data on click
+fig.update_traces(
+    hovertemplate="<b>%{customdata[0]}</b><br>Ethnicity: %{customdata[1]}<extra></extra>"
+)
+
+# Show the map
+fig.show()
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Population Distribution in Asia</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f0f0f0;
+        }
+        #map {
+            width: 80%;
+            height: 80vh;
+            border: 1px solid #ccc;
+            background-color: white;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+
+    <script>
+        // Sample data
+        const data = {
+            "population_name": ["South Asian", "Sri Lankan", "Japanese"],
+            "lat": [20.5937, 7.8731, 36.2048],
+            "lon": [78.9629, 80.7718, 138.2529],
+            "Ethnicity": ["BPB", "SLK", "JPN"],
+            "allele_freq": [0.5, 0.6, 0.7],
+            "sample_size": [1000000, 500000, 1200000]
+        };
+
+        // Create the map
+        const mapData = [{
+            type: 'scattergeo',
+            mode: 'markers',
+            lat: data.lat,
+            lon: data.lon,
+            text: data.population_name,
+            marker: {
+                size: data.sample_size.map(size => size / 50000),
+                color: data.allele_freq,
+                colorscale: 'Viridis',
+                colorbar: {
+                    title: 'Allele Frequency'
+                }
+            },
+            customdata: data.Ethnicity,
+            hovertemplate: "<b>%{text}</b><br>Ethnicity: %{customdata}<extra></extra>"
+        }];
+
+        const layout = {
+            title: 'Population Distribution in Asia',
+            geo: {
+                scope: 'asia',
+                showland: true,
+                landcolor: 'rgb(217, 217, 217)',
+                showcountries: true,
+                countrycolor: 'Black',
+                showsubunits: true,
+                subunitcolor: 'Blue'
+            }
+        };
+
+        Plotly.newPlot('map', mapData, layout, {showLink: false});
+    </script>
+</body>
+</html>
