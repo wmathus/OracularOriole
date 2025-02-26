@@ -43,8 +43,24 @@
 
         .btn-primary:hover {
             background-color: #1a3a5a;
+            color: white;
             border-color: transparent;
             transform: translateY(-3px);
+        }
+        .btn-outline-secondary {
+            background-color: transparent;
+            border: 2px solid #0e2841;
+            border-radius: 30px;
+            padding: 10px 20px;
+            color: #fff;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease;
+        }
+        .btn-outline-secondary:hover {
+            background-color: #0e2841;
+            color: white;
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
         }
     </style>
 </head>
@@ -69,6 +85,7 @@
         <!-- Back to Main Page Button -->
         <div class="mt-3">
             <a href="{{ url_for('search') }}" class="btn btn-primary">Back to Main</a>
+            <button onclick="history.back()" class="btn btn-outline-secondary">Go Back</button>
         </div>
     </div>
 
