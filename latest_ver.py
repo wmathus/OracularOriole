@@ -26,20 +26,21 @@ def get_db_connection(): # Same as Aida's code only it returns an error if a con
 
 @app.route("/")
 def home(): # Defines the home page where search hasn't been made. Nothing in the search results. No plot no results in the statistics section.
-    return render_template("index.html", search_results=None, manhattan_url=None)
+    return render_template("index.html", search_results=None, manhattan_url=None, population_map_url=None)
+
 
 @app.route("/search", methods=["GET", "POST"]) # **The POST option is required so that we can save the query submission for further analysis. GET only displays the table.
 def search():
     query = ""  # Initialize query with a default value; for gene info back to search function
     search_type = ""  # Initialize search_type with a default value; for gene info back to search function
-    
+    population_type = ""
     if request.method == "POST": # POST is often used to save username and password. The past queries are stored in the search bar. How it works for the frontend: (e.g., via an HTML <form> with method="POST")  
         search_type = request.form.get("searchType") # This bit is important because we need the plots for the pvalues to be drawn in the time of search submission (e.g., Manhattan plot, or other that you can think of). **We will use a similar structure for population stats. Keep that in mind pls.
         query = request.form.get("search_term", "").strip() # Strip = no unwanted spaces in the search pls >:( **A line can be added here for uppercase and lowercase queries. Nevermind SQL handles them. 
-   
+        population_type = request.form.get("population_type", "all")  # Get the selected population type
 
     if not query: # Defines the home page where search hasn't been made. Nothing in the search results. The route here is different therefore this line is still necessary.
-        return render_template("index.html", search_results=None, manhattan_url=None)
+        return render_template("index.html", search_results=None, manhattan_url=None, population_map_url=None)
 
     connection = get_db_connection()
     if not connection: # Redirect to error html frontpage, if there is and issue with MySql. Daddy will work on how that will look like later kitten whiskers.
@@ -78,8 +79,7 @@ def search():
             """, (query,))
             
             # For phenotype data in the gene search, first extract the SNP IDs from the results
-           # snp_results_temp = cursor.fetchall()
-           # snp_ids = [row["snp_id"] for row in snp_results_temp]
+
             # Reset the cursor with the SNP results to be used later
             global results
             snp_results_temp = cursor.fetchall()
@@ -141,14 +141,7 @@ def search():
             else:
                 phenotype_results = []
             cursor = None  # results already captured          
-        
-        #else:
-         #   return render_template("index.html", search_results=None, manhattan_url=None) #Leaves the webpage blank, resets to home kinda.
 
-       # else:
-       #     return render_template("index.html", search_results=None, manhattan_url=None, phenotype_table_html=None)
-        # To be able to use the results table in the download function. This globalizes the variable.
-        # If we haven't already set results (for gene and chromosome, we set it already)
               
         if cursor is not None:
             results = cursor.fetchall()
@@ -162,18 +155,21 @@ def search():
                            error_message=error_message)
    
         manhattan_url = generate_manhattan_plot(results) if results else None # Calling the plot function, why this is called URL will be explained in the fumction below.
-        # Generate phenotype pie chart URL from raw data (if available)
         # Generate the phenotype table DataFrame using your helper function
         table_df = generate_phenotype_table(phenotype_results)
-
+        population_results = fetch_population_results(query, search_type)
         # Convert the DataFrame to an HTML table.
         # You can add Bootstrap classes (or your own) for styling.
         phenotype_table_html = table_df.to_html(classes="table table-striped", index=False)
-
+        #Filter population results based on the selected population type
+        filtered_population_results = filter_population_data(population_results, population_type)
+        population_map_url = generate_population_plot()
         return render_template("index.html",
                        search_results=results,
                        manhattan_url=manhattan_url,
                        phenotype_table_html=phenotype_table_html,
+                       population_results=filtered_population_results,
+                       population_map_url= population_map_url,
                        error_message=None)
         
     except mysql.connector.Error as err: 
@@ -185,6 +181,93 @@ def search():
         # MySQL has a database connection limit, which is controlled by the "max_connections" system variable; this defines the maximum number of simultaneous client connections allowed to connect to the MySQL server, and the default value is usually around 151 connections depending on the MySQL version. 
         # Consider adding this if the function won't be necessarily continuosly used.
 
+def fetch_population_results(query, search_type):
+    """
+    Fetches population results from the database based on the query and search type.
+
+    Args:
+        query (str): The search term (e.g., SNP ID, gene name, genomic location).
+        search_type (str): The type of search ("snp", "gene", or "chromosome").
+
+    Returns:
+        list: List of dictionaries containing population data.
+    """
+    connection = get_db_connection()
+    if not connection:
+        return []
+
+    try:
+        cursor = connection.cursor(dictionary=True, buffered=True)
+
+        if search_type == "snp":
+            # Fetch population data for a specific SNP ID
+            cursor.execute("""
+                SELECT snp_id, pop_id, population_name, Ethnicity, sample_size, allele_frequency
+                FROM Population
+                WHERE snp_id = %s
+            """, (query,))
+        elif search_type == "gene":
+            # Fetch population data for all SNPs associated with a gene
+            cursor.execute("""
+                SELECT p.snp_id, p.pop_id, p.population_name, p.Ethnicity, p.sample_size, p.allele_frequency
+                FROM Population p
+                JOIN SNP_Gene sg ON p.snp_id = sg.snp_id
+                JOIN Gene_Functions gf ON sg.gene_id = gf.gene_id
+                WHERE gf.gene_id = %s
+            """, (query,))
+        elif search_type == "chromosome":
+            # Fetch population data for all SNPs in a specific genomic location
+            cursor.execute("""
+                SELECT p.snp_id, p.pop_id, p.population_name, p.Ethnicity, p.sample_size, p.allele_frequency
+                FROM Population p
+                JOIN SNPs s ON p.snp_id = s.snp_id
+                WHERE s.chromosome = %s OR s.position BETWEEN %s AND %s
+            """, (query, query, query))  # Adjust the query for genomic location as needed
+        else:
+            return []  # Invalid search type
+
+        population_results = cursor.fetchall()
+        return population_results
+    except mysql.connector.Error as err:
+        print(f"Database error: {err}")
+        return []
+    finally:
+        if 'cursor' in locals() and cursor is not None: cursor.close()
+        if connection.is_connected(): connection.close()
+
+def filter_population_data(population_results, population_type):
+    """
+    Filters population results based on the selected population type.
+
+    Args:
+        population_results (list): List of dictionaries containing population data.
+        population_type (str): The selected population type (e.g., "tml", "bpb", "jpn", "brt", "all").
+
+    Returns:
+        list: Filtered list of population results.
+    """
+    if population_type == "all":
+        return population_results  # Return all results if "all" is selected
+
+    # Define a mapping of population types to population names
+    population_mapping = {
+        "slk": "South Asian",
+        "bpb": "South Asian",
+        "jpn": "East Asian",
+    #    "brt": "European"
+    }
+
+    # Get the population name corresponding to the selected type
+    population_name = population_mapping.get(population_type)
+
+    if not population_name:
+        return []  # Return an empty list if the population type is invalid
+
+    # Filter the population results based on the population name
+    filtered_results = [row for row in population_results if row.get("population_name") == population_name]
+
+    return filtered_results     
+   
 @app.route('/gene/<gene_id>')
 def gene_info(gene_id):
     connection = get_db_connection()
@@ -376,89 +459,93 @@ def generate_phenotype_table(phenotype_results):
     except Exception as e:
         print(f"Error generating phenotype table: {e}")
         return pd.DataFrame()
+   
 
-population_data = {
-    "population_code": ["SAS"] * 60,
-    "population_name": ["South Asian"] * 60,
-    "Ethnicity": ["BPB"] * 6 + ["N/A"] * 20 + ["BPB?"] * 34,
-    "snp_id": ["rs7903146", "rs10830963", "rs2972145", "rs7756992", "rs2191349", "rs9854769",
-               "rs7531962", "rs12463719", "rs7432739", "rs7626079", "rs62366901", "rs74790763",
-               "rs7765207", "rs73689877", "rs2980766", "rs62486442", "rs13257283", "rs2488597",
-               "rs2114824", "rs10748694", "rs7123361", "rs9568861", "rs76141923", "rs28790585",
-               "rs7261425", "rs2065703", "rs11708067", "rs9808924", "rs7766070", "rs10184004",
-               "rs2203452", "rs1260326", "rs35142762", "rs12655753", "rs17036160", "rs13094957",
-               "rs10916784", "rs61748094", "rs329122", "rs2714343", "rs6813195", "rs3775087",
-               "rs13130845", "rs7629245", "rs3887925", "rs13066678", "rs935112", "rs76263492",
-               "rs62259319", "rs1393202", "rs12746673", "rs59689207", "rs61818951", "rs7579323",
-               "rs1012311", "rs10864859", "rs13387347", "rs16849467", "rs9873519", "rs1514895",
-               ],
-    "allele_freq": [0.75, 0.29, 0.54, 0.41, 0.11, 0.32, 0.28, 0.64, 0.60, 0.94, 0.39, 0.12, 0.48, 0.34, 0.92, 0.84, 0.47, 0.42, 0.69, 0.15, 0.01, 0.33, 0.71, 0.15, 0.782, 0.43, 0.266, 0.741, 0.757, 0.754, 0.857, 0.889, 0.881, 0.76, 0.559, 0.967, 0.383, 0.463, 0.618, 0.201, 0.702, 0.24, 0.549, 0.44, 0.882, 0.039, 0.412, 0.052, 0.147, 0.142, 0.044, 0.755, 0.402, 0.941, 0.403, 0.637, 0.286, 0.721, 0.297, 0.164],
-    "sample_size": [22490] * 6 + [197391, 272634, 197391, 197391, 197080, 272634, 197391, 272634, 264876, 190682, 272634, 272634, 271738, 272634, 228651, 272634, 186208, 197391] * 3
-}
 
-# Create a DataFrame
-df = pd.DataFrame(population_data)
-def generate_population_plot(df):
+
+def generate_population_plot():
+
+    connection = get_db_connection()
+    
+    if not connection: # Redirect to error html frontpage, if there is and issue with MySql. Daddy will work on how that will look like later kitten whiskers.
+        return render_template("error.html", message="Database connection failed")
+
     try:
-        # Aggregate data by population
-        aggregated_data = df.groupby('population_name').agg({
-            'allele_freq': 'mean',
-            'sample_size': 'sum'
-        }).reset_index()
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM Population")  
+        population_data = cursor.fetchall()
+        cursor.close()
+        connection.close()
 
-        # Map population names to coordinates (latitude and longitude)
+        # Debug: Check data
+        print(f" Retrieved {len(population_data)} rows from database.")
+
+        if not population_data:
+            print("No population data found in database!")
+            return None
+
+        # Convert to DataFrame
+        df = pd.DataFrame(population_data)
+        print(f" DataFrame created: {df.head()}")  # Print first few rows
+
+        # Define coordinates for populations
         population_coords = {
-            "South Asian": {"lat": 20.5937, "lon": 78.9629}
+            "South Asian": {"lat": 20.5937, "lon": 78.9629},
+            "Sri Lankan": {"lat": 7.8731, "lon": 80.7718},
+            "Japanese": {"lat": 36.2048, "lon": 138.2529}
         }
 
         # Add coordinates to the DataFrame
-        aggregated_data['lat'] = aggregated_data['population_name'].map(lambda x: population_coords[x]['lat'])
-        aggregated_data['lon'] = aggregated_data['population_name'].map(lambda x: population_coords[x]['lon'])
+        df["lat"] = df["population_name"].map(lambda x: population_coords.get(x, {}).get("lat", None))
+        df["lon"] = df["population_name"].map(lambda x: population_coords.get(x, {}).get("lon", None))
 
-        # Create the map using Plotly Express
-        fig = px.scatter_geo(aggregated_data,
-                             lat='lat',
-                             lon='lon',
-                             size='sample_size',
-                             color='allele_freq',
-                             hover_name='population_name',
-                             projection="natural earth",
-                             title='Worldwide Population Distribution')
+        # Debug: Check if lat/lon were added
+        print(f" Updated DataFrame with lat/lon: {df.head()}")
 
-        # Optionally show the map in a browser (can be commented out in production)
-        # fig.show()
+        # Ensure no NaN values in lat/lon
+        df = df.dropna(subset=["lat", "lon"])
 
-        # Save the map to a file. Here, we're saving to the "templates" folder so that Flask's render_template can find it.
-       # fig.write_html("templates/map.html")
-       # return True
-        # Save the plot as a PNG image
-        # Convert the plot to a base64-encoded image
+        # Generate the map
+        fig = px.scatter_geo(
+            df,
+            lat="lat",
+            lon="lon",
+            size="sample_size",
+            color="allele_frequency",
+            hover_name="population_name",
+            projection="natural earth",
+            title="Population Distribution in Asia"
+        )
+
+        # Convert figure to image
         img_buffer = io.BytesIO()
-        fig.write_image(img_buffer, format="png")  # Use kaleido to save as PNG
+        fig.write_image(img_buffer, format="png")  
         img_buffer.seek(0)
-        img_base64 = base64.b64encode(img_buffer.read()).decode('utf-8')
+        img_base64 = base64.b64encode(img_buffer.read()).decode("utf-8")
         img_url = f"data:image/png;base64,{img_base64}"
-        print("Figure generated successfully!")
-        return img_url  # Return the base64-encoded image URL
+
+        print(" Plot generated successfully!")
+        return img_url  
 
     except Exception as e:
-        print(f"Error generating population plot: {e}")
+        print(f" Error generating population plot: {e}")
         return None
-# Define the route globally
-@app.route("/population_map")
+
+@app.route("/population_map", methods=["GET"])
 def population_map():
-    # Generate the population plot and get the base64-encoded image URL
-    population_map_url = generate_population_plot(df)
+    print(" Accessed /population_map route")  # Debugging log
+
+    population_map_url = generate_population_plot()
+
     if not population_map_url:
+        print("No population map generated!")
         return render_template("error.html", message="Failed to generate population map")
 
-    # Pass the image URL to the template
+    print("Population map generated successfully, rendering template.")
     return render_template("index.html", population_map_url=population_map_url)
 
-@app.route("/other_population_data")
-def other_population_data():
-    # Add the logic for this endpoint
-    return render_template("None")
+
+
 
 if __name__ == "__main__": # Debugging in the command prompt
     app.run(debug=True, host="0.0.0.0", port=8080)
