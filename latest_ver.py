@@ -29,157 +29,154 @@ def home(): # Defines the home page where search hasn't been made. Nothing in th
     return render_template("index.html", search_results=None, manhattan_url=None, population_map_url=None)
 
 
-@app.route("/search", methods=["GET", "POST"]) # **The POST option is required so that we can save the query submission for further analysis. GET only displays the table.
+@app.route("/search", methods=["GET", "POST"])
 def search():
-    query = ""  # Initialize query with a default value; for gene info back to search function
-    search_type = ""  # Initialize search_type with a default value; for gene info back to search function
+    query = ""  # Initialize query with a default value
+    search_type = ""  # Initialize search_type with a default value
     population_type = ""
-    if request.method == "POST": # POST is often used to save username and password. The past queries are stored in the search bar. How it works for the frontend: (e.g., via an HTML <form> with method="POST")  
-        search_type = request.form.get("searchType") # This bit is important because we need the plots for the pvalues to be drawn in the time of search submission (e.g., Manhattan plot, or other that you can think of). **We will use a similar structure for population stats. Keep that in mind pls.
-        query = request.form.get("search_term", "").strip() # Strip = no unwanted spaces in the search pls >:( **A line can be added here for uppercase and lowercase queries. Nevermind SQL handles them. 
-        population_type = request.form.get("population_type", "all")  # Get the selected population type
+    if request.method == "POST":
+        search_type = request.form.get("searchType")
+        query = request.form.get("search_term", "").strip()
+        population_type = request.form.get("population_type", "all")
 
-    if not query: # Defines the home page where search hasn't been made. Nothing in the search results. The route here is different therefore this line is still necessary.
+    if not query:
         return render_template("index.html", search_results=None, manhattan_url=None, population_map_url=None)
 
     connection = get_db_connection()
-    if not connection: # Redirect to error html frontpage, if there is and issue with MySql. Daddy will work on how that will look like later kitten whiskers.
+    if not connection:
         return render_template("error.html", message="Database connection failed")
 
     try:
         cursor = connection.cursor(dictionary=True, buffered=True)
-        
+        results = []
+        phenotype_results = []
+
         if search_type == "snp":
             cursor.execute("""
-            SELECT SNPs.snp_id, SNPs.chromosome, SNPs.p_value, SNPs.odds_ratio, SNPs.link, SNP_Gene.gene_id, Gene_Functions.gene_start, Gene_Functions.gene_end
-            FROM SNPs
-            LEFT JOIN SNP_Gene ON SNPs.snp_id = SNP_Gene.snp_id
-            LEFT JOIN Gene_Functions ON SNP_Gene.gene_id = Gene_Functions.gene_id
-            WHERE SNPs.snp_id = %s
+                SELECT SNPs.snp_id, SNPs.chromosome, SNPs.p_value, SNPs.odds_ratio, SNPs.link, SNP_Gene.gene_id, Gene_Functions.gene_start, Gene_Functions.gene_end
+                FROM SNPs
+                LEFT JOIN SNP_Gene ON SNPs.snp_id = SNP_Gene.snp_id
+                LEFT JOIN Gene_Functions ON SNP_Gene.gene_id = Gene_Functions.gene_id
+                WHERE SNPs.snp_id = %s
             """, (query,))
-         
-         # Fetch raw phenotype data for the given SNP from your phenotype table
-         
+            results = cursor.fetchall()
+
+            # Fetch phenotype data for the given SNP
             cursor2 = connection.cursor(dictionary=True, buffered=True)
             cursor2.execute("""
-            SELECT snp_id, phenotype_id
-            FROM Phenotype_SNP
-            WHERE snp_id = %s
+                SELECT snp_id, phenotype_id
+                FROM Phenotype_SNP
+                WHERE snp_id = %s
             """, (query,))
             phenotype_results = cursor2.fetchall()
             cursor2.close()
 
         elif search_type == "gene":
             cursor.execute("""
-            SELECT SNPs.snp_id, SNPs.p_value, SNPs.odds_ratio, SNPs.link, SNPs.chromosome, SNP_Gene.gene_id, Gene_Functions.gene_start, Gene_Functions.gene_end
-            FROM SNP_Gene 
-            JOIN SNPs ON SNP_Gene.snp_id = SNPs.snp_id
-            JOIN Gene_Functions ON SNP_Gene.gene_id = Gene_Functions.gene_id
-            WHERE SNP_Gene.gene_id = %s 
+                SELECT SNPs.snp_id, SNPs.p_value, SNPs.odds_ratio, SNPs.link, SNPs.chromosome, SNP_Gene.gene_id, Gene_Functions.gene_start, Gene_Functions.gene_end
+                FROM SNP_Gene
+                JOIN SNPs ON SNP_Gene.snp_id = SNPs.snp_id
+                JOIN Gene_Functions ON SNP_Gene.gene_id = Gene_Functions.gene_id
+                WHERE SNP_Gene.gene_id = %s
             """, (query,))
-            
-            # For phenotype data in the gene search, first extract the SNP IDs from the results
-
-            # Reset the cursor with the SNP results to be used later
-            global results
-            snp_results_temp = cursor.fetchall()
-            print("Fetched SNP Results:", snp_results_temp)  # Debugging
-
-
-            snp_ids = [row["snp_id"] for row in snp_results_temp]
-            results = snp_results_temp  # Store for later use
-            print(results)
-
-            if snp_ids:
-                cursor2 = connection.cursor(dictionary=True, buffered=True)
-                # Use IN clause to get phenotype data for all SNPs related to the gene
-                format_strings = ','.join(['%s'] * len(snp_ids))
-                phenotype_query = f"""
-                    SELECT snp_id, phenotype_id
-                    FROM Phenotype_SNP
-                    WHERE snp_id IN ({format_strings})
-                    """
-                print("Phenotype Query:", phenotype_query)  # Print generated query
-                print("Query Parameters:", tuple(snp_ids))
-                cursor2.execute(phenotype_query, tuple(snp_ids))
-                phenotype_results = cursor2.fetchall()
-                cursor2.close()
-                print("Phenotype Results:", phenotype_results)
-            else:
-                print("No SNPs found for the given query.")
-                phenotype_results = []
-
-            # Since we already fetched the results above, skip the default fetch later.
-            cursor = None
-
-        
-        elif search_type == "chromosome":
-            cursor.execute("""
-            SELECT SNPs.snp_id, SNPs.p_value, SNPs.odds_ratio, SNPs.link, SNPs.chromosome, SNP_Gene.gene_id, Gene_Functions.gene_start, Gene_Functions.gene_end
-            FROM SNPs
-            JOIN SNP_Gene ON SNPs.snp_id = SNP_Gene.snp_id
-            JOIN Gene_Functions ON SNP_Gene.gene_id = Gene_Functions.gene_id
-            WHERE SNPs.chromosome = %s OR Gene_Functions.gene_start = %s OR Gene_Functions.gene_end = %s
-            """, (query,query,query))
-           
-            # For phenotype data in chromosome search, extract SNP IDs first
-            snp_results_temp = cursor.fetchall()
-            snp_ids = [row["snp_id"] for row in snp_results_temp]
-            results = snp_results_temp
-
-            if snp_ids:
-                cursor2 = connection.cursor(dictionary=True, buffered=True)
-                format_strings = ','.join(['%s'] * len(snp_ids))
-                phenotype_query = f"""
-                    SELECT snp_id, phenotype_id
-                    FROM Phenotype_SNP
-                    WHERE snp_id IN ({format_strings})
-                    """
-                cursor2.execute(phenotype_query, tuple(snp_ids))
-                phenotype_results = cursor2.fetchall()
-                cursor2.close()
-            else:
-                phenotype_results = []
-            cursor = None  # results already captured          
-
-              
-        if cursor is not None:
             results = cursor.fetchall()
-            
+
+            # Fetch phenotype data for the SNPs related to the gene
+            snp_ids = [row["snp_id"] for row in results]
+            if snp_ids:
+                format_strings = ','.join(['%s'] * len(snp_ids))
+                cursor2 = connection.cursor(dictionary=True, buffered=True)
+                cursor2.execute(f"""
+                    SELECT snp_id, phenotype_id
+                    FROM Phenotype_SNP
+                    WHERE snp_id IN ({format_strings})
+                """, tuple(snp_ids))
+                phenotype_results = cursor2.fetchall()
+                cursor2.close()
+
+        elif search_type == "chromosome":
+            # Parse the query into chromosome and position range
+            parts = query.split(":")
+            chromosome = parts[0]
+            start_pos, end_pos = None, None
+
+            if len(parts) > 1:
+                position_part = parts[1]  # The part after the colon (e.g., "75576495")
+                try:
+                    # If the position is a single value, treat it as both start and end
+                    start_pos = int(position_part)
+                    end_pos = start_pos
+                except ValueError:
+                    # Handle invalid position format
+                    return render_template("error.html", message="Invalid position format. Expected format: 'chromosome:position' or 'chromosome:start-end'")
+
+            # Fetch SNPs and genes based on the chromosome and position range
+            if start_pos is not None and end_pos is not None:
+                cursor.execute("""
+                    SELECT SNPs.snp_id, SNPs.p_value, SNPs.odds_ratio, SNPs.link, SNPs.chromosome, SNP_Gene.gene_id, Gene_Functions.gene_start, Gene_Functions.gene_end
+                    FROM SNPs
+                    JOIN SNP_Gene ON SNPs.snp_id = SNP_Gene.snp_id
+                    JOIN Gene_Functions ON SNP_Gene.gene_id = Gene_Functions.gene_id
+                    WHERE SNPs.chromosome = %s
+                    AND (Gene_Functions.gene_start BETWEEN %s AND %s
+                    OR Gene_Functions.gene_end BETWEEN %s AND %s
+                    OR (Gene_Functions.gene_start <= %s AND Gene_Functions.gene_end >= %s))
+                """, (chromosome, start_pos, end_pos, start_pos, end_pos, start_pos, end_pos))
+            else:
+                # Fetch all SNPs and genes on the specified chromosome
+                cursor.execute("""
+                    SELECT SNPs.snp_id, SNPs.p_value, SNPs.odds_ratio, SNPs.link, SNPs.chromosome, SNP_Gene.gene_id, Gene_Functions.gene_start, Gene_Functions.gene_end
+                    FROM SNPs
+                    JOIN SNP_Gene ON SNPs.snp_id = SNP_Gene.snp_id
+                    JOIN Gene_Functions ON SNP_Gene.gene_id = Gene_Functions.gene_id
+                    WHERE SNPs.chromosome = %s
+                """, (chromosome,))
+            results = cursor.fetchall()
+
+            # Fetch phenotype data for the SNPs
+            snp_ids = [row["snp_id"] for row in results]
+            if snp_ids:
+                format_strings = ','.join(['%s'] * len(snp_ids))
+                cursor2 = connection.cursor(dictionary=True, buffered=True)
+                cursor2.execute(f"""
+                    SELECT snp_id, phenotype_id
+                    FROM Phenotype_SNP
+                    WHERE snp_id IN ({format_strings})
+                """, tuple(snp_ids))
+                phenotype_results = cursor2.fetchall()
+                cursor2.close()
+
         if not results:
             error_message = "No results found for your query. Please try a different search term."
             return render_template("index.html",
-                           search_results=None,
-                           manhattan_url=None,
-                           phenotype_table_html=None,
-                           error_message=error_message)
-   
-        manhattan_url = generate_manhattan_plot(results) if results else None # Calling the plot function, why this is called URL will be explained in the fumction below.
-        # Generate the phenotype table DataFrame using your helper function
+                                   search_results=None,
+                                   manhattan_url=None,
+                                   phenotype_table_html=None,
+                                   error_message=error_message)
+
+        manhattan_url = generate_manhattan_plot(results) if results else None
         table_df = generate_phenotype_table(phenotype_results)
         population_results = fetch_population_results(query, search_type)
-        # Convert the DataFrame to an HTML table.
-        # You can add Bootstrap classes (or your own) for styling.
         phenotype_table_html = table_df.to_html(classes="table table-striped", index=False)
-        #Filter population results based on the selected population type
         filtered_population_results = filter_population_data(population_results, population_type)
         population_map_url = generate_population_plot()
+
         return render_template("index.html",
-                       search_results=results,
-                       manhattan_url=manhattan_url,
-                       phenotype_table_html=phenotype_table_html,
-                       population_results=filtered_population_results,
-                       population_map_url= population_map_url,
-                       error_message=None)
-        
-    except mysql.connector.Error as err: 
-        print(f"Database error: {err}") # Displays the error type from MySql.
+                               search_results=results,
+                               manhattan_url=manhattan_url,
+                               phenotype_table_html=phenotype_table_html,
+                               population_results=filtered_population_results,
+                               population_map_url=population_map_url,
+                               error_message=None)
+
+    except mysql.connector.Error as err:
+        print(f"Database error: {err}")
         return render_template("error.html", message="Database query failed")
-    finally: # This ensures that resources are released and connections are closed.  
-        if 'cursor' in locals() and cursor is not None: cursor.close() # Regardless of if the cursor is empty or full. The connection is closed. It might give an error if it is empty otherwvise.
-        if connection.is_connected(): connection.close() # If the connection is already closed (e.g., due to an error), calling connection.close() again would raise an exception. Hence "is_connected". 
-        # MySQL has a database connection limit, which is controlled by the "max_connections" system variable; this defines the maximum number of simultaneous client connections allowed to connect to the MySQL server, and the default value is usually around 151 connections depending on the MySQL version. 
-        # Consider adding this if the function won't be necessarily continuosly used.
+    finally:
+        if 'cursor' in locals() and cursor is not None:
+            cursor.close()
+        if connection.is_connected():
+            connection.close()
 
 def fetch_population_results(query, search_type):
     """
@@ -221,7 +218,7 @@ def fetch_population_results(query, search_type):
                 SELECT p.snp_id, p.pop_id, p.population_name, p.Ethnicity, p.sample_size, p.allele_frequency
                 FROM Population p
                 JOIN SNPs s ON p.snp_id = s.snp_id
-                WHERE s.chromosome = %s OR s.position BETWEEN %s AND %s
+                WHERE s.chromosome = %s OR s.positions BETWEEN %s AND %s
             """, (query, query, query))  # Adjust the query for genomic location as needed
         else:
             return []  # Invalid search type
