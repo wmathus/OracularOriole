@@ -98,25 +98,29 @@ def search():
             # Parse the query into chromosome and position range
             parts = query.split(":")
             chromosome = parts[0]
-            start_pos, end_pos = None, None
-            position_part = parts[1] 
-                # Handle position range
-            if "-" in position_part:
-        # Case: chromosome:start-end (e.g., "4:75576495-75576500")
-                position_parts = position_part.split("-")
-                if len(position_parts) == 2:
-                    try:
-                        start_pos = int(position_parts[0])
-                        end_pos = int(position_parts[1])
-                    except ValueError:
-                        return render_template("error.html", message="Invalid position range. Expected format: 'chromosome:start-end'")
+            
+            if len(parts) == 1:
+               start_pos, end_pos = None, None 
             else:
+                position_part = parts[1] 
+                # Handle position range
+                
+                if "-" in position_part:
+        # Case: chromosome:start-end (e.g., "4:75576495-75576500")
+                    position_parts = position_part.split("-")
+                    if len(position_parts) == 2:
+                        try:
+                            start_pos = int(position_parts[0])
+                            end_pos = int(position_parts[1])
+                        except ValueError:
+                            return render_template("error.html", message="Invalid position range. Expected format: 'chromosome:start-end'")
+                else:
         # Case: chromosome:position (e.g., "4:75576495")
-                try:
-                    start_pos = int(position_part)
-                    end_pos = start_pos  # Treat single position as both start and end
-                except ValueError:
-                    return render_template("error.html", message="Invalid position. Expected format: 'chromosome:position'")          
+                    try:
+                        start_pos = int(position_part)
+                        end_pos = start_pos  # Treat single position as both start and end
+                    except ValueError:
+                        return render_template("error.html", message="Invalid position. Expected format: 'chromosome:position'")          
 
             # Fetch SNPs and genes based on the chromosome and position range
             if start_pos is not None and end_pos is not None:
