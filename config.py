@@ -3,3 +3,10 @@ DB_CONFIG = {
     'user': 'sql8762368',  # Change this if you use a different MySQL username
     'password': 'DB45Pl1pRv',  # Replace with your actual MySQL password
     'database': 'sql8762368'}
+
+
+# DB_CONFIG = {
+#     'host':"localhost",
+#     'user':"root",
+#     'password':"GroupProject85",
+#     'database':"sql8762368"}

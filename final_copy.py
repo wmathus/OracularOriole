@@ -14,6 +14,9 @@ import pandas as pd
 import plotly.express as px
 import plotly.io as pio
 from flask import send_from_directory
+import seaborn as sns
+from plotting_functions import plot_tajima_d_by_chromosome, plot_fst_heatmap, plot_tajima_d_all_chromosomes, plot_tajima_d_histogram
+
 
 app = Flask(__name__)
 
@@ -540,6 +543,82 @@ def generate_population_plot():
     except Exception as e:
         print(f" Error generating population plot: {e}")
         return None
+    
+
+
+def fetch_fst_data():
+    """Fetches FST data from MySQL and returns it as a DataFrame."""
+    connection = get_db_connection()
+    if not connection:
+        return None
+
+    try:
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM Fixation")
+        rows = cursor.fetchall()
+        cursor.close()
+        connection.close()
+
+        if not rows:
+            print("No FST data found.")
+            return None
+        
+        # Convert fetched data into Pandas DataFrame
+        df = pd.DataFrame(rows)
+        return df
+
+    except mysql.connector.Error as err:
+        print(f"Database error: {err}")
+        return None
+    
+def fetch_tajimas_d_data():
+    pop_id_to_population = {
+    6: "BEB",
+    7: "PJL",
+    2: "STU",  # Might be SLK
+}
+    """
+    Fetch Tajima's D data from the MySQL database and return it as a pandas DataFrame.
+    """
+    connection = get_db_connection()
+    #query = "SELECT * FROM all_tajimas"
+    if not connection:
+        return None
+
+    try:
+        cursor = connection.cursor(dictionary=True)
+        
+
+        # Query to get all Tajima's D data from the "all_tajimas" table
+        cursor.execute("""SELECT * FROM TajimasD""")
+        rows = cursor.fetchall()
+
+        # # Print the fetched rows to debug
+        # print("Fetched rows:", rows)
+        # If no data found, return None
+        if not rows:
+            return None
+        
+        for row in rows:
+            pop_id = row.get("pop_id")
+            if pop_id in pop_id_to_population:
+                row["POPULATION"] = pop_id_to_population[pop_id]
+            else:
+                row["POPULATION"] = "Unknown"  # Default value for unknown pop_ids
+        # Convert the result into a pandas DataFrame
+            if "bin_start" in row:
+                row["BIN_START_Mb"] = row["bin_start"] / 1_000_000  # Convert bp to Mb
+        df = pd.DataFrame(rows)
+        print (df)
+        return df
+
+    except mysql.connector.Error as err:
+        print(f"Database error: {err}")
+        return None
+    finally:
+        if 'cursor' in locals() and cursor is not None: cursor.close()
+        if connection.is_connected(): connection.close()
+
 
 @app.route("/population_map", methods=["GET"])
 def population_map():
@@ -552,8 +631,59 @@ def population_map():
         return render_template("error.html", message="Failed to generate population map")
 
     print("Population map generated successfully, rendering template.")
-    return render_template("index.html", population_map_url=population_map_url)
+    #return render_template("index.html", population_map_url=population_map_url)
+    return render_template("index.html", manhattan_url=img_url)
 
+@app.route("/tajima_d_by_chromosome/<chromosome>/<population>")
+def tajima_d_by_chromosome_route(chromosome, population):
+    df = fetch_tajimas_d_data()
+    
+    chromosome = int(chromosome)  # Ensure the input chromosome is a string
+    filtered_df = df[(df["chromosome"].astype(int) == chromosome) & (df["POPULATION"] == population)]
+    print("This is the data that will be used to calculate STD and Mean: \n", filtered_df)
+        # Ensure chromosome is treated as an integer if applicable
+    try:
+        chromosome = int(chromosome)  # Convert to int to match DataFrame
+    except ValueError:
+        pass  # Keep as string if conversion fails
+    print ("This is the Tajima d by chromosome info: \n", filtered_df)
+    if filtered_df is None or filtered_df.empty:
+        return render_template("error.html", message="No Tajima's D data found or an error occurred.")
+
+    img_url = plot_tajima_d_by_chromosome(chromosome, population, filtered_df)
+    #print(f"DEBUG: Generated Image URL: {img_url}")
+    if not img_url:
+        return render_template("error.html", message="No data found or an error occurred.")
+    return render_template("index.html", manhattan_url=img_url)
+
+@app.route("/tajima_d_all_chromosomes/<population>")
+def tajima_d_all_chromosomes_route(population):
+    df = fetch_tajimas_d_data()
+    print("This is the data that will be used to calculate STD and Mean: \n", df)
+    img_url = plot_tajima_d_all_chromosomes(population, df)
+    return render_template("index.html", manhattan_url=img_url)
+
+@app.route("/tajima_d_histogram/<population>")
+def tajima_d_histogram_route(population):
+    df = fetch_tajimas_d_data()
+    print("This is the data that will be used to calculate STD and Mean: \n", df)
+    img_url = plot_tajima_d_histogram(population, df)
+    return render_template("index.html", histogram_url=img_url)
+
+
+@app.route("/fst_heatmap")
+def fst_heatmap_route():
+    """Fetch FST data, generate heatmap, and send it to the frontend."""
+    df = fetch_fst_data()  # Fetch FST data from MySQL
+    if df is None:
+        return render_template("error.html", message="No FST data available.")
+
+    img_url = plot_fst_heatmap(df)  # Generate heatmap from data
+
+    if not img_url:
+        return render_template("error.html", message="Failed to generate FST heatmap.")
+
+    return render_template("index.html", fst_heatmap_url=img_url)
 
 if __name__ == "__main__": # Debugging in the command prompt
     app.run(debug=True, host="0.0.0.0", port=8080)

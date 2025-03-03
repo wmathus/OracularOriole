@@ -464,3 +464,25 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
+
+{% if manhattan_url %}
+    <h2>Manhattan Plot for Chromosome</h2>
+    <img src="{{ manhattan_url }}" alt="Tajima's D Manhattan Plot" 
+         style="width:80%; border: 1px solid #ddd; padding: 10px;">
+{% else %}
+    <p style="color: red;">⚠️ No plot available. Try a different chromosome or population.</p>
+{% endif %}
+
+{% if histogram_url %}
+    <h2>Tajima's D Histogram for {{ population }} Population</h2>
+    <img src="{{ histogram_url }}" class="img-fluid" alt="Tajima's D Histogram" style="width:80%; border: 1px solid #ddd; padding: 10px;">
+{% else %}
+    <p>No histogram available for this population.</p>
+{% endif %}
+
+{% if fst_heatmap_url %}
+    <h2>Pairwise FST Heatmap</h2>
+    <img src="{{ fst_heatmap_url }}" class="img-fluid" alt="FST Heatmap" style="width:80%; border: 1px solid #ddd; padding: 10px;">
+{% else %}
+    <p>No FST heatmap available.</p>
+{% endif %}
