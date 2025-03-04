@@ -12,7 +12,9 @@ from flask import Response
 import pandas as pd
 import plotly.express as px
 import plotly.io as pio
-from flask import send_from_directory
+from pop_func import fetch_population_id, filter_population_data, generate_population_df, generate_population_plot
+from flask import session, redirect, url_for
+
 
 app = Flask(__name__)
 
@@ -24,10 +26,27 @@ def get_db_connection(): # Same as Aida's code only it returns an error if a con
         print(f"Database connection error: {err}")
         return None
 
-@app.route("/")
-def home(): # Defines the home page where search hasn't been made. Nothing in the search results. No plot no results in the statistics section.
-    return render_template("index.html", search_results=None, manhattan_url=None, population_map_url=None)
+@app.route('/')
+def home():
+    # Retrieve sidebar state from session (default to False if not set)
+    sidebar_hidden = session.get('sidebar_hidden', False)
+    
+    return render_template("index.html", 
+                           search_results=None, 
+                           manhattan_url=None, 
+                           population_map_url=None, 
+                           sidebar_hidden=sidebar_hidden) 
 
+
+@app.route('/hide_sidebar')
+def hide_sidebar():
+    session['sidebar_hidden'] = True  # Set sidebar as hidden
+    return redirect(url_for('home'))
+
+@app.route('/show_sidebar')
+def show_sidebar():
+    session['sidebar_hidden'] = False  # Reset sidebar visibility
+    return redirect(url_for('home'))
 
 @app.route("/search", methods=["GET", "POST"])
 def search():
@@ -48,7 +67,8 @@ def search():
 
     try:
         cursor = connection.cursor(dictionary=True, buffered=True)
-        results = []
+        global results
+
         phenotype_results = []
 
         if search_type == "snp":
@@ -143,8 +163,9 @@ def search():
                     JOIN Gene_Functions ON SNP_Gene.gene_id = Gene_Functions.gene_id
                     WHERE SNPs.chromosome = %s
                 """, (chromosome,))
-            results = cursor.fetchall()
 
+            results = cursor.fetchall()
+            
             # Fetch phenotype data for the SNPs
             snp_ids = [row["snp_id"] for row in results]
             if snp_ids:
@@ -159,124 +180,44 @@ def search():
                 cursor2.close()
 
         if not results:
-            error_message = "No results found for your query. Please try a different search term."
-            return render_template("index.html",
-                                   search_results=None,
-                                   manhattan_url=None,
-                                   phenotype_table_html=None,
-                                   error_message=error_message)
+            return render_template("index.html", search_results=None, pop_results=None, error_message="No results found.")
 
-        manhattan_url = generate_manhattan_plot(results) if results else None
-        table_df = generate_phenotype_table(phenotype_results)
-        population_results = fetch_population_results(query, search_type)
-        phenotype_table_html = table_df.to_html(classes="table table-striped", index=False)
-        filtered_population_results = filter_population_data(population_results, population_type)
-        population_map_url = generate_population_plot()
+        # Fetch population results
+        population_results = fetch_population_id(query, search_type)
 
-        return render_template("index.html",
-                               search_results=results,
-                               manhattan_url=manhattan_url,
-                               phenotype_table_html=phenotype_table_html,
-                               population_results=filtered_population_results,
-                               population_map_url=population_map_url,
-                               error_message=None)
+        # Filter and append population names
+        filtered_results = filter_population_data(population_results, population_type)
+
+        # Generate DataFrame with allele frequencies, sample sizes, SNP IDs, and population names
+        pop_results = generate_population_df(filtered_results)
+        population_map_url = generate_population_plot(pop_results)
+        # Convert phenotype results to HTML table
+        phenotype_table_html = pd.DataFrame(phenotype_results).to_html(classes="table table-striped", index=False)
+
+        # Render template with results
+        return render_template(
+            "index.html",
+            search_results=results,
+            population_type=population_type,
+            sidebar_hidden=True,
+            phenotype_table_html=phenotype_table_html,
+            pop_results=pop_results,
+            population_map_url=population_map_url,
+            error_message=None
+        )
 
     except mysql.connector.Error as err:
         print(f"Database error: {err}")
-        return render_template("error.html", message="Database query failed")
+        return render_template("index.html", search_results=None, pop_results=None, error_message="Database query failed.")
     finally:
-        if 'cursor' in locals() and cursor is not None:
+        if cursor:
             cursor.close()
         if connection.is_connected():
             connection.close()
 
-def fetch_population_results(query, search_type):
-    """
-    Fetches population results from the database based on the query and search type.
 
-    Args:
-        query (str): The search term (e.g., SNP ID, gene name, genomic location).
-        search_type (str): The type of search ("snp", "gene", or "chromosome").
 
-    Returns:
-        list: List of dictionaries containing population data.
-    """
-    connection = get_db_connection()
-    if not connection:
-        return []
 
-    try:
-        cursor = connection.cursor(dictionary=True, buffered=True)
-
-        if search_type == "snp":
-            # Fetch population data for a specific SNP ID
-            cursor.execute("""
-                SELECT snp_id, pop_id, population_name, Ethnicity, sample_size, allele_frequency
-                FROM Population
-                WHERE snp_id = %s
-            """, (query,))
-        elif search_type == "gene":
-            # Fetch population data for all SNPs associated with a gene
-            cursor.execute("""
-                SELECT p.snp_id, p.pop_id, p.population_name, p.Ethnicity, p.sample_size, p.allele_frequency
-                FROM Population p
-                JOIN SNP_Gene sg ON p.snp_id = sg.snp_id
-                JOIN Gene_Functions gf ON sg.gene_id = gf.gene_id
-                WHERE gf.gene_id = %s
-            """, (query,))
-        elif search_type == "chromosome":
-            # Fetch population data for all SNPs in a specific genomic location
-            cursor.execute("""
-                SELECT p.snp_id, p.pop_id, p.population_name, p.Ethnicity, p.sample_size, p.allele_frequency
-                FROM Population p
-                JOIN SNPs s ON p.snp_id = s.snp_id
-                WHERE s.chromosome = %s OR s.positions BETWEEN %s AND %s
-            """, (query, query, query))  # Adjust the query for genomic location as needed
-        else:
-            return []  # Invalid search type
-
-        population_results = cursor.fetchall()
-        return population_results
-    except mysql.connector.Error as err:
-        print(f"Database error: {err}")
-        return []
-    finally:
-        if 'cursor' in locals() and cursor is not None: cursor.close()
-        if connection.is_connected(): connection.close()
-
-def filter_population_data(population_results, population_type):
-    """
-    Filters population results based on the selected population type.
-
-    Args:
-        population_results (list): List of dictionaries containing population data.
-        population_type (str): The selected population type (e.g., "tml", "bpb", "jpn", "brt", "all").
-
-    Returns:
-        list: Filtered list of population results.
-    """
-    if population_type == "all":
-        return population_results  # Return all results if "all" is selected
-
-    # Define a mapping of population types to population names
-    population_mapping = {
-        "slk": "South Asian",
-        "bpb": "South Asian",
-        "jpn": "East Asian",
-    #    "brt": "European"
-    }
-
-    # Get the population name corresponding to the selected type
-    population_name = population_mapping.get(population_type)
-
-    if not population_name:
-        return []  # Return an empty list if the population type is invalid
-
-    # Filter the population results based on the population name
-    filtered_results = [row for row in population_results if row.get("population_name") == population_name]
-
-    return filtered_results     
-   
 @app.route('/gene/<gene_id>')
 def gene_info(gene_id):
     connection = get_db_connection()
@@ -357,7 +298,7 @@ def download_csv():
     finally:
         if 'cursor' in locals(): cursor.close()
         if connection.is_connected(): connection.close()
-
+'''
 def generate_manhattan_plot(results):
     try:
         if not results:
@@ -420,7 +361,7 @@ def generate_manhattan_plot(results):
     except Exception as e:
         app.logger.error(f"Plot generation failed: {str(e)}")
         return None
-
+'''
 def generate_phenotype_table(phenotype_results):
     try:
         if not phenotype_results:
@@ -469,92 +410,6 @@ def generate_phenotype_table(phenotype_results):
         print(f"Error generating phenotype table: {e}")
         return pd.DataFrame()
    
-
-
-
-def generate_population_plot():
-
-    connection = get_db_connection()
-    
-    if not connection: # Redirect to error html frontpage, if there is and issue with MySql. Daddy will work on how that will look like later kitten whiskers.
-        return render_template("error.html", message="Database connection failed")
-
-    try:
-        cursor = connection.cursor(dictionary=True)
-        cursor.execute("SELECT * FROM Population")  
-        population_data = cursor.fetchall()
-        cursor.close()
-        connection.close()
-
-        # Debug: Check data
-        print(f" Retrieved {len(population_data)} rows from database.")
-
-        if not population_data:
-            print("No population data found in database!")
-            return None
-
-        # Convert to DataFrame
-        df = pd.DataFrame(population_data)
-        print(f" DataFrame created: {df.head()}")  # Print first few rows
-
-        # Define coordinates for populations
-        population_coords = {
-            "South Asian": {"lat": 20.5937, "lon": 78.9629},
-            "Sri Lankan": {"lat": 7.8731, "lon": 80.7718},
-            "Japanese": {"lat": 36.2048, "lon": 138.2529}
-        }
-
-        # Add coordinates to the DataFrame
-        df["lat"] = df["population_name"].map(lambda x: population_coords.get(x, {}).get("lat", None))
-        df["lon"] = df["population_name"].map(lambda x: population_coords.get(x, {}).get("lon", None))
-
-        # Debug: Check if lat/lon were added
-        print(f" Updated DataFrame with lat/lon: {df.head()}")
-
-        # Ensure no NaN values in lat/lon
-        df = df.dropna(subset=["lat", "lon"])
-
-        # Generate the map
-        fig = px.scatter_geo(
-            df,
-            lat="lat",
-            lon="lon",
-            size="sample_size",
-            color="allele_frequency",
-            hover_name="population_name",
-            projection="natural earth",
-            title="Population Distribution in Asia"
-        )
-
-        # Convert figure to image
-        img_buffer = io.BytesIO()
-        fig.write_image(img_buffer, format="png")  
-        img_buffer.seek(0)
-        img_base64 = base64.b64encode(img_buffer.read()).decode("utf-8")
-        img_url = f"data:image/png;base64,{img_base64}"
-
-        print(" Plot generated successfully!")
-        return img_url  
-
-    except Exception as e:
-        print(f" Error generating population plot: {e}")
-        return None
-
-@app.route("/population_map", methods=["GET"])
-def population_map():
-    print(" Accessed /population_map route")  # Debugging log
-
-    population_map_url = generate_population_plot()
-
-    if not population_map_url:
-        print("No population map generated!")
-        return render_template("error.html", message="Failed to generate population map")
-
-    print("Population map generated successfully, rendering template.")
-    return render_template("index.html", population_map_url=population_map_url)
-
-
-
 
 if __name__ == "__main__": # Debugging in the command prompt
     app.run(debug=True, host="0.0.0.0", port=8080)
