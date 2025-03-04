@@ -156,19 +156,12 @@
 <body>
 
     <!-- Full screen Sidebar  -->
-    <div class="full-screen-sidebar" id="sidebar">
+    <div class="full-screen-sidebar {% if sidebar_hidden %}hidden{% endif %}" id="sidebar">
         <div class="container text-center">
             <h2 class="mt-4">T2D Oracle: Ancestry, Selection, and Functional Insights for <i> Type 2 Diabetes</i></i></h2>
             <p>Use the dropdown menu below to search SNPs by SNP ID, genomic location, or mapped gene.</p>
            
 
-<!--            <h4 class="mt-3">Controls</h4>
-                <div class="mb-3">
-                    <label class="form-label">P-value Threshold</label>
-                    <input type="number" step="any" name="p_value" class="form-control" 
-                           value="{{ p_value_threshold | default('') }}">
-                </div> 
--->            
 
             <form method="POST" action="/search">
                 <hr>
@@ -191,71 +184,23 @@
                     <div class="col-md-6">
                         <label class="form-label">Search</label> 
                         <input type="text" name="search_term" class="form-control" 
-                               placeholder="e.g. rs35261542; CDKAL1; (chromosome number:basepair start-basepair end; chromosome number:basepair start)"
+                               placeholder="e.g. rs35261542; CDKAL1; (chromosome number:basepair start-basepair end; chromosome number:snp basepair)"
                                value="{{ request.form.search_term | default('') }}">
                     </div>
                 </div>
-                <button type="submit" class="btn btn-primary mt-3">Search</button>
+                <button class="btn btn-success mt-4">Search</button>
+                
             </form>
-
-            {% if search_results %}
-                <div class="mt-3 table-responsive">
-                    <h5>Search Results</h5>
-                    <table class="table table-bordered">
-                        <thead>
-                            <tr>
-                                <th>SNP ID</th>
-                                <th>Chromosome</th>
-                                <th>Genomic start</th>
-                                <th>Genomic end</th>
-                                <th>P-Value</th>
-                                <th>Odds Ratio</th>
-                                <th>Mapped Gene</th>
-                                <th>Reference</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for row in search_results %}
-                            <tr>
-                                <td>{{ row.snp_id }}</td>
-                                <td>{{ row.chromosome | default('N/A') }}</td>
-                                <td>{{ row.gene_start | default('N/A') }}</td>
-                                <td>{{ row.gene_end | default('N/A') }}</td>
-                                <td>{{ row.p_value | default('N/A') }}</td>
-                                <td>{{ row.odds_ratio | default('N/A') }}</td>
-                                <td>
-                                    {% if row.gene_id %}
-                                    <a href="{{ url_for('gene_info', gene_id=row.gene_id) }}">{{ row.gene_id }}</a>
-                                    {% else %}
-                                     N/A
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {% if row.link %}
-                                    <a href="{{ row.link }}" target="_blank">Reference</a>
-                                    {% else %}
-                                    N/A
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                    <button class="btn btn-warning btn-lg mt-2" onclick="downloadCSV()">Download CSV</button>
-                </div>
-            {% endif %}
-
-            <div class="mt-3">
-                <small>Last Updated: {{ last_update }}</small>
-            </div>
-             
-
-            <button class="btn btn-success mt-4" onclick="hideSidebar()">Continue to Analysis ↓</button>
+        <button class="btn btn-success mt-4" onclick="hideSidebar()">Continue to Analysis ↓</button>
         </div>
     </div>
-
    
-    <button class="btn btn-secondary back-button" id="backButton" onclick="showSidebar()">← Back to Main Page</button>
+        <!-- Back to Main Page Button -->
+        <div class="mt-3">
+            <button onclick="showSidebar()" class="btn btn-primary">← Back to Main Page</button>
+        </div>
+    </div>
+    
 
     <div class="container main-content" id="main-content">
         <h1 class="mt-3">Type 2 Diabetes Genomic Statistics</h1>
@@ -264,23 +209,66 @@
             <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#snp">SNP Analysis</a></li>
             <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#population">Population Distribution</a></li>
         </ul>
-
+    
         <div class="tab-content">
-            <div class="tab-pane fade show active" id="snp">
+
+   
+
                 <!-- Row for side-by-side cards -->
-                
+                <div id="searchResults">
                     <!-- Left Column: Manhattan Plot -->
                     <div class="col-md-auto" data-aos="fade-up" data-aos-duration="1000">
-                        <div class="card animated-card">
-                            <h3>Manhattan Plot</h3>
-                            {% if manhattan_url %}
-                            <img src="{{ manhattan_url }}" class="img-fluid" alt="Manhattan Plot">
-                            {% else %}
-                            <p>No Manhattan plot available</p>
-                            {% endif %}
+                        {% if search_results %}
+                        <div class="mt-3 table-responsive">
+                            <h5>Search Results</h5>
+                            <table class="table table-bordered">
+                                <thead>
+                                    <tr>
+                                        <th>SNP ID</th>
+                                        <th>Chromosome</th>
+                                        <th>Genomic start</th>
+                                        <th>Genomic end</th>
+                                        <th>P-Value</th>
+                                        <th>Odds Ratio</th>
+                                        <th>Mapped Gene</th>
+                                        <th>Reference</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for row in search_results %}
+                                    <tr>
+                                        <td>{{ row.snp_id }}</td>
+                                        <td>{{ row.chromosome | default('N/A') }}</td>
+                                        <td>{{ row.gene_start | default('N/A') }}</td>
+                                        <td>{{ row.gene_end | default('N/A') }}</td>
+                                        <td>{{ row.p_value | default('N/A') }}</td>
+                                        <td>{{ row.odds_ratio | default('N/A') }}</td>
+                                        <td>
+                                            {% if row.gene_id %}
+                                            <a href="{{ url_for('gene_info', gene_id=row.gene_id) }}">{{ row.gene_id }}</a>
+                                            {% else %}
+                                             N/A
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if row.link %}
+                                            <a href="{{ row.link }}" target="_blank">Reference</a>
+                                            {% else %}
+                                            N/A
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                            <button class="btn btn-warning btn-lg mt-2" onclick="downloadCSV()">Download CSV</button>
                         </div>
+                    {% endif %}
+                </div>
+                    <div class="mt-3">
+                        <small>Last Updated: {{ last_update }}</small>
                     </div>
-                    <!-- Right Column: Phenotype Table -->
+
                     <div class="col-md-auto" data-aos="fade-up" data-aos-duration="1000" data-aos-delay="200">
                         <div class="card animated-card">
                             <h3>Phenotype Table</h3>
@@ -294,7 +282,7 @@
                         </div>
                     </div>
                 
-            </div>
+        </div>
 
             <div class="tab-pane fade" id="population">
                 <h3 class="mt-3">Population Distribution</h3>
@@ -307,97 +295,42 @@
                             <h5>Website designed to shed light into the intricate relationship between T2D phenotypes and ancestry, by Queen Mary Universtiy of London Bioinformatics Master's students. Jan 2025</h5>
                             <p>You can find more information about our code in our github page linked below</p>
                             <p>If you face any issues, you can contact us from our github page.<href</p>
-                            <li>
-                                <a href="{{ url_for('population_map') }}">Population Distribution</a>
-                            </li>
+
                             <div class="img-world-plot">
                                 {% if population_map_url %}
-                                    
+                                <h2 class="mt-5">Population Distribution Map</h2>
+                                <div class="map-container">
                                     <img src="{{ population_map_url }}" alt="Population Map" class="img-fluid">
-                                {% else %}
-                                    <p> No population map available</p>
-                                {% endif %}
+                                </div>
+                            {% else %}
+                                <p class="text-danger mt-5">No population map available.</p>
+                            {% endif %}
+                        </div>
                             </div>
                             </div>
                             <p>Note:</p>
                             <p>This is a prototype.</p>
                         </div>
-
-        <!-- Population Filter Form -->
-        <form method="POST" action="/search">
-            <div class="row mt-3">
-                <div class="col-md-6">
-                    <form method="GET" action="{{ url_for('population_map', _external=True) }}">
-                        <label for="population_type">Filter by Ethnicity:</label>
-                        <select id="population_type" name="population_type">
-                            <option value="all" {% if population_type == "all" %}selected{% endif %}>All Ethnicities</option>
-                            <option value="bpb" {% if population_type == "bpb" %}selected{% endif %}>Bengali (BPB)</option>
-                            <option value="jpn" {% if population_type == "jpn" %}selected{% endif %}>Japanese (JPN)</option>
-                            <option value="slk" {% if population_type == "slk" %}selected{% endif %}>Sri Lankan (SLK)</option>
-                        </select>
-                        <button type="submit" class="btn btn-primary mt-2">Apply Filter</button>
-        
-            
-        </form>
-
+                    <form action="/search" method="POST" class="mb-4">
+                        <div class="col-md-3"> <!-- population_type == pop_id -->
+                            <select class="form-select" name="population_type">
+                                <option value="all">All Populations</option>
+                                <option value="1">British Pakistani and Bangladeshi</option>
+                                <option value="2">Sri Lankan Tamil</option>
+                                <option value="3">South Asian1</option>
+                                <option value="4">South Asian2</option>
+                                <option value="5">Japanese from Tokyo, Japan</option>
+                                <option value="6">Bengali from Bangladesh</option>
+                                <option value="7">Punjabi from Lahore, Pakistan</option>
+                            </select>
+                        </div>
+                    </form>
         <!-- Display Filtered Results -->
         <div class="row mt-4">
             <div class="col-md-12">
                 <h2>Filtered Population Results</h2>
-                {% if population_results %}
-                    <table class="table table-striped">
-                        <thead>
-                            <tr>
-                                <th>SNP ID</th>
-                                <th>Population Name</th>
-                                <th>Ethnicity</th>
-                                <th>Sample Size</th>
-                                <th>Allele Frequency</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for row in population_results %}
-                                <tr>
-                                    <td>{{ row.snp_id }}</td>
-                                    <td>{{ row.population_name }}</td>
-                                    <td>{{ row.Ethnicity }}</td>
-                                    <td>{{ row.sample_size }}</td>
-                                    <td>{{ row.allele_frequency }}</td>
-                                </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                {% else %}
-                    <p>No population results found.</p>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-                        <div class="card animated-card">
-                            <h2>Population Statistics</h2><!--
-                            <p>Explore the following population statistics:</p>
-                            <ul>
-                                <li>
-                                    <a href="{{ url_for('population_map') }}">South Asian Population</a>
-                                    <br>
-                                    <small>{{ url_for('population_map') }}</small>
-                                </li>
-                                
-                                <div class="card animated-card">
-                                    <h2>Search SNP in Population Data</h2>
-                                    <div class="row">
-                                        <div class="col-md-8">
-                                            <input type="text" id="snpSearch" class="form-control" placeholder="Enter SNP ID (e.g., rs35261542)">
-                                        </div>
-                                        <div class="col-md-4">
-                                            <button class="btn btn-primary" onclick="searchSNP()">Search</button>
-                                        </div>
-                                    </div>
-                                </div>
-                            -->
 
-                            </ul>
-                        </div>
+
                     </div>
 
                     <div class="rightcolumn">
@@ -425,31 +358,37 @@
                     <h2>Queen Mary University of London</h2>
 
                 <div id="distribution-plot" class="text-center mt-3">
-                    <p class="text-muted">Population distribution visualization coming soon</p>
                 </div>
             </div>
         </div>
     </div>
 
     <script>        
+// Function to hide the sidebar and show the back button
         function hideSidebar() {
-            let sidebar = document.getElementById("sidebar");
-            let backButton = document.getElementById("backButton");
-
-            sidebar.classList.add("hidden");
-            backButton.style.display = "block";
-            document.getElementById("main-content").scrollIntoView({ behavior: "smooth" });
+            fetch('/hide_sidebar')  // Calls the Flask route to update session
+                .then(() => {
+                    const sidebar = document.getElementById("sidebar");
+                    sidebar.classList.add("hidden");  // Hide using CSS
+                    setTimeout(() => {
+                        sidebar.style.display = "none";
+                        document.getElementById("main-content").scrollIntoView({ behavior: "smooth" });
+                    }, 600);
+                });
         }
 
         function showSidebar() {
-            let sidebar = document.getElementById("sidebar");
-            let backButton = document.getElementById("backButton");
-
-            sidebar.classList.remove("hidden");
-            backButton.style.display = "none";
-            window.scrollTo({ top: 0, behavior: "smooth" });
+            fetch('/show_sidebar')  // Calls the Flask route to reset session state
+                .then(() => {
+                    const sidebar = document.getElementById("sidebar");
+                    sidebar.style.display = "flex";
+                    setTimeout(() => {
+                        sidebar.classList.remove("hidden");
+                    }, 50);
+                });
         }
 
+        
         function downloadCSV() {
             window.location.href = "/download_csv";
         }
