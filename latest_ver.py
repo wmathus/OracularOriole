@@ -97,7 +97,7 @@ def search():
             cursor2 = connection.cursor(dictionary=True, buffered=True)
             cursor2.execute("""
                 SELECT snp_id, phenotype_id
-                FROM Phenotype_SNP
+                FROM phenotype_SNP
                 WHERE snp_id = %s
             """, (query,))
             phenotype_results = cursor2.fetchall()
@@ -120,7 +120,7 @@ def search():
                 cursor2 = connection.cursor(dictionary=True, buffered=True)
                 cursor2.execute(f"""
                     SELECT snp_id, phenotype_id
-                    FROM Phenotype_SNP
+                    FROM phenotype_SNP
                     WHERE snp_id IN ({format_strings})
                 """, tuple(snp_ids))
                 phenotype_results = cursor2.fetchall()
@@ -185,7 +185,7 @@ def search():
                 cursor2 = connection.cursor(dictionary=True, buffered=True)
                 cursor2.execute(f"""
                     SELECT snp_id, phenotype_id
-                    FROM Phenotype_SNP
+                    FROM phenotype_SNP
                     WHERE snp_id IN ({format_strings})
                 """, tuple(snp_ids))
                 phenotype_results = cursor2.fetchall()
@@ -652,11 +652,6 @@ def download_fst_stats():
     return Response(output.getvalue(),
                     mimetype="text/plain",
                     headers={"Content-Disposition": "attachment; filename=fst_stats.txt"})
-
-if __name__ == "__main__": # Debugging in the command prompt
-    app.run(debug=True, host="0.0.0.0", port=8080)
-
-
 
 if __name__ == "__main__": # Debugging in the command prompt
     app.run(debug=True, host="0.0.0.0", port=8080)
