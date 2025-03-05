@@ -297,7 +297,7 @@
                             <p>If you face any issues, you can contact us from our github page.<href</p>
 
                             <div class="img-world-plot">
-                                {% if population_map_url %}
+                            {% if population_map_url %}
                                 <h2 class="mt-5">Population Distribution Map</h2>
                                 <div class="map-container">
                                     <img src="{{ population_map_url }}" alt="Population Map" class="img-fluid">
@@ -305,34 +305,53 @@
                             {% else %}
                                 <p class="text-danger mt-5">No population map available.</p>
                             {% endif %}
+                        
                         </div>
-                            </div>
                             </div>
                             <p>Note:</p>
                             <p>This is a prototype.</p>
                         </div>
-                    <form action="/search" method="POST" class="mb-4">
-                        <div class="col-md-3"> <!-- population_type == pop_id -->
-                            <select class="form-select" name="population_type">
-                                <option value="all">All Populations</option>
-                                <option value="1">British Pakistani and Bangladeshi</option>
-                                <option value="2">Sri Lankan Tamil</option>
-                                <option value="3">South Asian1</option>
-                                <option value="4">South Asian2</option>
-                                <option value="5">Japanese from Tokyo, Japan</option>
-                                <option value="6">Bengali from Bangladesh</option>
-                                <option value="7">Punjabi from Lahore, Pakistan</option>
-                            </select>
+                        <div class="container">
+                            <h1 class="mt-5">Search Tajima's D by Chromosome</h1>
+                    
+                            <!-- Form to select population and search -->
+                            <form id="searchForm" method="GET" action="/search/tajima_d_by_chromosome">
+                                <div class="form-group">
+                                    <!-- Hidden input for chromosome, populated dynamically from Flask -->
+                                    <input type="hidden" id="chromosome" name="chromosome" value="{{ chromosome }}">
+                                </div>
+                    
+                                <div class="form-group">
+                                    <label for="population"><strong>Select Population:</strong></label>
+                                    <select class="form-control" id="population" name="population" required>
+                                        <option value="BEB">BEB</option>
+                                        <option value="PJL">PJL</option>
+                                        <option value="STU">STU</option>
+                                    </select>
+                                </div>
+                    
+                                <button type="submit" class="btn btn-primary">Search</button>
+                            </form>
+                    
+                            {% if manhattan_url %}
+                                <div class="mt-5">
+                                    <h2>Tajima's D by Chromosome</h2>
+                                    <img src="{{ manhattan_url }}" alt="Tajima's D by Chromosome" class="img-fluid">
+                                </div>
+                            {% endif %}
+                    
+                            {% if message %}
+                                <div class="alert alert-danger mt-5">{{ message }}</div>
+                            {% endif %}
                         </div>
-                    </form>
+                    
+
         <!-- Display Filtered Results -->
         <div class="row mt-4">
             <div class="col-md-12">
                 <h2>Filtered Population Results</h2>
 
-
-                    </div>
-
+                    
                     <div class="rightcolumn">
                         <div class="card">
                             <h2>References</h2>
@@ -387,8 +406,17 @@
                     }, 50);
                 });
         }
-
         
+        document.getElementById("populationDropdown").addEventListener("change", function() {
+            const population = this.value;
+            const chromosome = document.getElementById("chromosomeInput").value;  // Replace with actual chromosome input
+
+    // Construct the URL with both chromosome and population
+            const url = `/search/tajima_d_by_chromosome?chromosome=${chromosome}&population=${population}`;
+
+    // Redirect to the new URL
+            window.location.href = url;
+        });
         function downloadCSV() {
             window.location.href = "/download_csv";
         }
@@ -399,7 +427,9 @@
     <script>
         AOS.init();
     </script>
-
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
