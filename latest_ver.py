@@ -589,7 +589,69 @@ def tajima_d_all_chromosomes_route(population):
                            tajima_all_chromosomes_url=session.get("tajima_all_chromosomes_url"),
                            population=population)
 
+@app.route("/download_taj_population/<population>")
+def download_tajima_stats(population):
+    df = fetch_tajimas_d_data()
+    filtered_df = df[df["POPULATION"] == population] #Filters by population, this is for the histogram and manhattan for the entire population. 
+    gene_stats = filtered_df.groupby("gene_id").agg({"tajimas_d": ["mean", "std"]})
+    chromosome_stats = filtered_df.groupby("chromosome").agg({"tajimas_d": ["mean", "std"]})
 
+    # Fill NaN values for standard deviation (std) where there is no variance
+    gene_stats["tajimas_d", "std"] = gene_stats["tajimas_d", "std"].fillna(0)
+    chromosome_stats["tajimas_d", "std"] = chromosome_stats["tajimas_d", "std"].fillna(0)
+
+    output = io.StringIO()
+
+    # Write gene statistics
+    output.write("Tajima's D Statistics by Gene\n")
+    output.write("=====================================\n")
+    output.write("Gene_ID\tMean_Tajima_D\tStd_Tajima_D\n")
+    for index, row in gene_stats.iterrows():
+        output.write(f"{index}\t{row[('tajimas_d', 'mean')]:.6f}\t{row[('tajimas_d', 'std')]:.6f}\n")
+
+    output.write("\n")  # Blank line separator
+
+    # Write chromosome statistics
+    output.write("Tajima's D Statistics by Chromosome\n")
+    output.write("=====================================\n")
+    output.write("Chromosome\tMean_Tajima_D\tStd_Tajima_D\n")
+    for index, row in chromosome_stats.iterrows():
+        output.write(f"{index}\t{row[('tajimas_d', 'mean')]:.6f}\t{row[('tajimas_d', 'std')]:.6f}\n")
+
+    output.seek(0)
+
+    return Response(output.getvalue(),
+                    mimetype="text/plain",
+                    headers={"Content-Disposition": f"attachment; filename={population}_tajima_stats.txt"})
+
+@app.route("/download_fst_stats")
+def download_fst_stats():
+    df = fetch_fst_data()
+    if df is None or df.empty:
+        return render_template("error.html", message="No FST data available for download.")
+
+    # Compute FST mean and std per chromosome and comparison
+    fst_stats = df.groupby(["chromosome", "comparison"]).agg({"fst": ["mean", "std"]}).fillna(0)
+
+    # Reset column names for readability
+    fst_stats.columns = ['fst_mean', 'fst_std']
+    fst_stats.reset_index(inplace=True)
+
+    # Create an in-memory text file
+    output = io.StringIO()
+
+    # Write FST statistics in text format
+    output.write("FST Statistics by Chromosome and Comparison\n")
+    output.write("===========================================\n")
+    output.write("Chromosome\tComparison\tMean_FST\tStd_FST\n")
+    for _, row in fst_stats.iterrows():
+        output.write(f"{row['chromosome']}\t{row['comparison']}\t{row['fst_mean']:.6f}\t{row['fst_std']:.6f}\n")
+
+    output.seek(0)
+
+    return Response(output.getvalue(),
+                    mimetype="text/plain",
+                    headers={"Content-Disposition": "attachment; filename=fst_stats.txt"})
 
 if __name__ == "__main__": # Debugging in the command prompt
     app.run(debug=True, host="0.0.0.0", port=8080)
