@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, Response, jsonify
-import mysql.connector
 from config import DB_CONFIG # Custom database config (e.g., host, user, password)
+import mysql.connector
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -16,8 +16,17 @@ from pop_func import fetch_population_id, generate_population_df, generate_popul
 from flask import session, redirect, url_for
 import seaborn as sns
 from plotting_functions import plot_tajima_d_by_chromosome, plot_fst_heatmap, plot_tajima_d_all_chromosomes, plot_tajima_d_histogram
+from flask_session import Session
 
 app = Flask(__name__)
+app.secret_key = "oriole"
+# Configure server-side session storage
+# Configure session to use filesystem (store session data on the server)
+app.config["SESSION_TYPE"] = "filesystem"
+app.config["SESSION_PERMANENT"] = False  # Optional: session expires on browser close
+app.config["SESSION_FILE_DIR"] = "./flask_session"  # Folder to store session files
+
+Session(app)
 
 def get_db_connection(): # Same as Aida's code only it returns an error if a connection isn't made. Better for future use.
     """Database connection with error handling"""
@@ -55,7 +64,7 @@ def show_sidebar():
 def search():
     query = ""  # Initialize query with a default value
     search_type = ""  # Initialize search_type with a default value
-    population_type = ""
+    population = ""
     if request.method == "POST":
         search_type = request.form.get("searchType")
         query = request.form.get("search_term", "").strip()
@@ -73,7 +82,7 @@ def search():
         global results
         results = []
         phenotype_results = []
-
+        session["results"] = results 
         if search_type == "snp":
             cursor.execute("""
                 SELECT SNPs.snp_id, SNPs.chromosome, SNPs.p_value, SNPs.odds_ratio, SNPs.link, SNP_Gene.gene_id, Gene_Functions.gene_start, Gene_Functions.gene_end
@@ -198,12 +207,18 @@ def search():
         population_map_url = generate_population_plot(pop_results)
         # Convert phenotype results to HTML table
         phenotype_table_html = pd.DataFrame(phenotype_results).to_html(classes="table table-striped", index=False)
-  
-        print(population)
+        session["pop_results"] = pop_results
+        session["population_map_url"] = population_map_url
+        session["results"] = results 
+        
+        session["population_map_url"] = population_map_url
+        session["phenotype_table_html"] = phenotype_table_html
+        
         chr_taj = list(range(1, 15)) + [15, 20]
         if chromosome not in chr_taj:
             return render_template("index.html", search_results=results, population_map_url=population_map_url, error_message=f"No Tajima's D data found for Chromosome {chromosome}.", chromosome=chromosome, selected_population=population)
-       
+
+
         # Render template with results
         return render_template(
             "index.html",
@@ -429,56 +444,151 @@ def fetch_tajimas_d_data():
         if 'cursor' in locals() and cursor is not None: cursor.close()
         if connection.is_connected(): connection.close()
 
+def process_results_for_plotting():
+    """
+    Extracts relevant information from the global `results` variable,
+    converts it into a DataFrame, and transforms gene start positions into megabases.
+    This is later used to try and plot the lines per SNP in the individual Taj manhattan plot.
+    Can be removed if we find another way to annotate the SNP's present in plots!
+
+    Returns:
+        pd.DataFrame: Processed DataFrame with required columns.
+    """
+    if not results:
+        print("No results found to process.")
+        return pd.DataFrame()  # Return an empty DataFrame if results are empty
+
+    processed_data = [
+        {"snp_id": entry["snp_id"], "chromosome": entry["chromosome"], "gene_id": entry["gene_id"], "gene_start_mb": entry["gene_start"] / 1_000_000, 
+         "gene_end_mb": entry["gene_end"] / 1_000_000}
+        for entry in results
+    ]
+
+    # Convert dictionaries to DataFrame
+    df_processed = pd.DataFrame(processed_data)
+
+    return df_processed
+
 @app.route("/search/tajima_d_by_chromosome", methods=["GET"])
 def tajima_d_by_chromosome_route():
-    chromosome = request.args.get("chromosome")  # Get chromosome from the URL (passed as a hidden input)
-    population = request.args.get("population")  # Get population from the dropdown
+    chromosome = request.args.get("chromosome")  
+    population = request.args.get("population")  
 
     if not chromosome or not population:
         return render_template("error.html", message="Please provide both chromosome and population.")
 
-    df = fetch_tajimas_d_data()  # Fetch data from your source (database, CSV, etc.)
+    df = fetch_tajimas_d_data()
     filtered_df = df[(df["chromosome"].astype(str) == str(chromosome)) & (df["POPULATION"] == population)]
 
     if filtered_df.empty:
         return render_template("error.html", message="No data found for the specified chromosome and population.")
 
     img_url = plot_tajima_d_by_chromosome(chromosome, population, filtered_df)
+    tajima_histogram_url = plot_tajima_d_histogram(population, df)
+    df_fst = fetch_fst_data()
+
+    # Generate image URLs
+    tajima_all_chromosomes_url = plot_tajima_d_all_chromosomes(population, df)
+    tajima_histogram_url = plot_tajima_d_histogram(population, df)
+    fst_heatmap_url = plot_fst_heatmap(df_fst)
+
 
     if not img_url:
         return render_template("error.html", message="Failed to generate the plot.")
-    return render_template("index.html", chromosome=chromosome, population=population, manhattan_url=img_url, sidebar_hidden=True)
 
+    # Store session variables
+    session["chromosome"] = chromosome
+    session["population"] = population
+    session["histogram_url"] = tajima_histogram_url
+    session["tajima_all_chromosomes_url"] = tajima_all_chromosomes_url  
+    session["fst_heatmap_url"] = fst_heatmap_url
+
+    results = session.get("results", [])
+
+    # Render template with results
+    return render_template(
+        "index.html",
+        search_results=results,
+        selected_population=population,
+        chromosome=chromosome,
+        tajima_all_chromosomes_url=session.get("tajima_all_chromosomes_url"),
+        histogram_url=session.get("histogram_url"),
+        fst_heatmap_url=session.get("fst_heatmap_url"),
+        manhattan_url=img_url,
+        population_map_url=session.get("population_map_url"),  # Ensure this variable is stored in session
+        sidebar_hidden=True,
+        phenotype_table_html=session.get("phenotype_table_html", ""),
+        pop_results=session.get("pop_results", []),
+        error_message=None
+    )
+
+@app.route("/download/tajima_d_by_chromosome", methods=["GET"])
+def download_taj_by_chromosome():
+    chromosome = request.args.get("chromosome")
+    population = request.args.get("population")
+
+    if not chromosome or not population:
+        return "Chromosome and population are required.", 400
+
+    df = fetch_tajimas_d_data()
+    filtered_df = df[(df["chromosome"] == int(chromosome)) & (df["POPULATION"] == population)]
+
+    # Calculate gene and chromosome stats, filling N/A with 0
+    gene_stats = filtered_df.groupby("gene_id").agg({"tajimas_d": ["mean", "std"]})
+    chromosome_stats = filtered_df.groupby("chromosome").agg({"tajimas_d": ["mean", "std"]})
+    gene_stats["tajimas_d", "std"] = gene_stats["tajimas_d", "std"].fillna(0)
+    chromosome_stats["tajimas_d", "std"] = chromosome_stats["tajimas_d", "std"].fillna(0)
+
+    # Convert both gene_stats and chromosome_stats to CSV format
+    output = io.StringIO()  # Create an in-memory text stream
+    writer = csv.writer(output)
+
+    # Write headers for gene stats
+    writer.writerow(['gene_id', 'mean_tajimas_d', 'std_tajimas_d'])
+    for index, row in gene_stats.iterrows():
+        writer.writerow([index, row[('tajimas_d', 'mean')], row[('tajimas_d', 'std')]])
+
+    writer.writerow([])  # Blank row to separate the two tables
+
+    # Write headers for chromosome stats
+    writer.writerow(['chromosome', 'mean_tajimas_d', 'std_tajimas_d'])
+    for index, row in chromosome_stats.iterrows():
+        writer.writerow([index, row[('tajimas_d', 'mean')], row[('tajimas_d', 'std')]])
+
+    # Set the file pointer to the start of the file
+    output.seek(0)
+
+    # Send the generated CSV as a response to download
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment;filename={population}_tajima_by_chromosome_{chromosome}_stats.csv"}
+    )
 
 
 @app.route("/tajima_d_all_chromosomes/<population>")
 def tajima_d_all_chromosomes_route(population):
-    df = fetch_tajimas_d_data()
-    print("This is the data that will be used to calculate STD and Mean: \n", df)
-    img_url = plot_tajima_d_all_chromosomes(population, df)
-    return render_template("index.html", manhattan_url=img_url)
+    df_tajima = fetch_tajimas_d_data()
+    df_fst = fetch_fst_data()
 
-@app.route("/tajima_d_histogram/<population>")
-def tajima_d_histogram_route(population):
-    df = fetch_tajimas_d_data()
-    print("This is the data that will be used to calculate STD and Mean: \n", df)
-    img_url = plot_tajima_d_histogram(population, df)
-    return render_template("index.html", histogram_url=img_url)
+    # Generate image URLs
+    tajima_all_chromosomes_url = plot_tajima_d_all_chromosomes(population, df_tajima)
+    tajima_histogram_url = plot_tajima_d_histogram(population, df_tajima)
+    fst_heatmap_url = plot_fst_heatmap(df_fst)
 
+    # Store URLs in session to retain data across requests
+    session["tajima_all_chromosomes_url"] = tajima_all_chromosomes_url
+    session["histogram_url"] = tajima_histogram_url
+    session["fst_heatmap_url"] = fst_heatmap_url
+    session["population"] = population
 
-@app.route("/fst_heatmap")
-def fst_heatmap_route():
-    """Fetch FST data, generate heatmap, and send it to the frontend."""
-    df = fetch_fst_data()  # Fetch FST data from MySQL
-    if df is None:
-        return render_template("error.html", message="No FST data available.")
+    return render_template("index.html", 
+                           manhattan_url=session.get("manhattan_url"),
+                           histogram_url=session.get("histogram_url"),
+                           fst_heatmap_url=session.get("fst_heatmap_url"),
+                           tajima_all_chromosomes_url=session.get("tajima_all_chromosomes_url"),
+                           population=population)
 
-    img_url = plot_fst_heatmap(df)  # Generate heatmap from data
-
-    if not img_url:
-        return render_template("error.html", message="Failed to generate FST heatmap.")
-
-    return render_template("index.html", fst_heatmap_url=img_url)
 
 
 if __name__ == "__main__": # Debugging in the command prompt
