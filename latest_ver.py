@@ -252,7 +252,7 @@ def gene_info(gene_id):
 
         # Fetch gene information from the database
         cursor.execute("""
-        SELECT Gene_Functions.gene_id, Gene_Functions.gene_description, Gene_Functions.ensembl_id, Gene_Functions.gene_start, Gene_Functions.gene_end, SNP_Gene.snp_id, Gene_GO.go_id, Gene_GO.go_description
+        SELECT Gene_Functions.gene_id, Gene_Functions.gene_description, Gene_Functions.gene_start, Gene_Functions.gene_end, SNP_Gene.snp_id, Gene_GO.go_id, Gene_GO.go_description
         FROM Gene_Functions
         LEFT JOIN SNP_Gene ON Gene_Functions.gene_id = SNP_Gene.gene_id LEFT JOIN Gene_GO ON Gene_Functions.gene_id = Gene_GO.gene_id
         WHERE Gene_Functions.gene_id = %s
@@ -588,6 +588,11 @@ def tajima_d_all_chromosomes_route(population):
                            fst_heatmap_url=session.get("fst_heatmap_url"),
                            tajima_all_chromosomes_url=session.get("tajima_all_chromosomes_url"),
                            population=population)
+
+
+
+if __name__ == "__main__": # Debugging in the command prompt
+    app.run(debug=True, host="0.0.0.0", port=8080)
 
 
 
