@@ -205,15 +205,20 @@
     <div class="container main-content" id="main-content">
         <h1 class="mt-3">Type 2 Diabetes Genomic Statistics</h1>
         
+        <!-- Navigation Tabs -->
         <ul class="nav nav-tabs">
-            <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#snp">SNP Analysis</a></li>
-            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#population">Population Distribution</a></li>
-        </ul>
-    
+            <li class="nav-item">
+                <a class="nav-link active" data-bs-toggle="tab" href="#snp" data-bs-toggle="tooltip" title="SNP Analysis">
+                    <i class="fas fa-dna"></i> SNP Analysis
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" data-bs-toggle="tab" href="#population" data-bs-toggle="tooltip" title="Population Distribution">
+                    <i class="fas fa-users"></i> Population Distribution
+                </a>
+            </li>
+        </ul>   
         <div class="tab-content">
-
-   
-
                 <!-- Row for side-by-side cards -->
                 <div id="searchResults">
                     <!-- Left Column: Manhattan Plot -->
@@ -261,16 +266,12 @@
                                     {% endfor %}
                                 </tbody>
                             </table>
-                            <button class="btn btn-warning btn-lg mt-2" onclick="downloadCSV()">Download CSV</button>
+                            <button class="btn btn-warning btn-mg mt-2" onclick="downloadCSV()">Download CSV</button>
                         </div>
                     {% endif %}
                 </div>
-                    <div class="mt-3">
-                        <small>Last Updated: {{ last_update }}</small>
-                    </div>
 
-                    <div class="col-md-auto" data-aos="fade-up" data-aos-duration="1000" data-aos-delay="200">
-                        <div class="card animated-card">
+                       
                             <h3>Phenotype Table</h3>
                             {% if phenotype_table_html %}
                             <div class="table-responsive">
@@ -279,106 +280,140 @@
                             {% else %}
                             <p>No phenotype information available</p>
                             {% endif %}
-                        </div>
-                    </div>
+                        
+           
+                    <div class="mt-3">
+                        <small>Last Updated: {{ last_update }}</small>
+                    </div>                  
                 
         </div>
 
-            <div class="tab-pane fade" id="population">
-                <h3 class="mt-3">Population Distribution</h3>
+        <div class="tab-pane fade" id="population">
+            <h3 class="mt-3">Population Distribution</h3>
 
-                <!-- Added Section -->
-                <div class="row">
-                    <div class="leftcolumn">
-                        <div class="card animated-card">
-                            <h2>About</h2>
-                            <h5>Website designed to shed light into the intricate relationship between T2D phenotypes and ancestry, by Queen Mary Universtiy of London Bioinformatics Master's students. Jan 2025</h5>
-                            <p>You can find more information about our code in our github page linked below</p>
-                            <p>If you face any issues, you can contact us from our github page.<href</p>
-
-                            <div class="img-world-plot">
-                            {% if population_map_url %}
-                                <h2 class="mt-5">Population Distribution Map</h2>
-                                <div class="map-container">
-                                    <img src="{{ population_map_url }}" alt="Population Map" class="img-fluid">
-                                </div>
-                            {% else %}
-                                <p class="text-danger mt-5">No population map available.</p>
-                            {% endif %}
-                        
-                        </div>
+            <!-- Added Section -->
+            <div class="row">
+                <div class="leftcolumn">
+                    
+                        <div class="img-world-plot">
+                        {% if population_map_url %}
+                            <h2 class="mt-5">Population Distribution Map</h2>
+                            <div class="map-container">
+                                <img src="{{ population_map_url }}" alt="Population Map" class="img-fluid">
                             </div>
-                            <p>Note:</p>
-                            <p>This is a prototype.</p>
-                        </div>
-                        <div class="container">
-                            <h1 class="mt-5">Search Tajima's D by Chromosome</h1>
+                        {% else %}
+                            <p class="text-danger mt-5">No population map available.</p>
+                        {% endif %}
                     
-                            <!-- Form to select population and search -->
-                            <form id="searchForm" method="GET" action="/search/tajima_d_by_chromosome">
-                                <div class="form-group">
-                                    <!-- Hidden input for chromosome, populated dynamically from Flask -->
-                                    <input type="hidden" id="chromosome" name="chromosome" value="{{ chromosome }}">
-                                </div>
                     
-                                <div class="form-group">
-                                    <label for="population"><strong>Select Population:</strong></label>
-                                    <select class="form-control" id="population" name="population" required>
-                                        <option value="BEB">BEB</option>
-                                        <option value="PJL">PJL</option>
-                                        <option value="STU">STU</option>
-                                    </select>
-                                </div>
-                    
-                                <button type="submit" class="btn btn-primary">Search</button>
-                            </form>
-                    
-                            {% if manhattan_url %}
-                                <div class="mt-5">
-                                    <h2>Tajima's D by Chromosome</h2>
-                                    <img src="{{ manhattan_url }}" alt="Tajima's D by Chromosome" class="img-fluid">
-                                </div>
-                            {% endif %}
-                    
-                            {% if message %}
-                                <div class="alert alert-danger mt-5">{{ message }}</div>
-                            {% endif %}
-                        </div>
-                    
-
-        <!-- Display Filtered Results -->
-        <div class="row mt-4">
-            <div class="col-md-12">
-                <h2>Filtered Population Results</h2>
-
-                    
-                    <div class="rightcolumn">
-                        <div class="card">
-                            <h2>References</h2>
-                            <p>Numbers</p>
                         </div>
 
-                        <div class="card">
-                            <h3>Follow us</h3>
-                            <a href="https://github.com/OracularOriole" target="_blank">
-                                <i class="fab fa-github github-icon"></i>
-                            </a>
+                    <div class="container">
+                        <h3 class="mt-5">Search Tajima's D by Queried Chromosome and Select a Population from the drop down below</h3>
+                
+                        <!-- Form to select population and search -->
+                        <form id="searchForm" method="GET" action="/search/tajima_d_by_chromosome">
+                            <div class="form-group">
+                                <!-- Hidden input for chromosome, populated dynamically from Flask -->
+                                <input type="hidden" id="chromosome" name="chromosome" value="{{ chromosome }}">
+                            </div>
+                
+                            <div class="form-group">
+                                <label for="population"><strong>Select Population:</strong></label>
+                                <select class="form-control" id="population" name="population" required>
+                                    <option value="BEB">British Pakistani and Bangladeshi (BEB)</option>
+                                    <option value="PJL">Punjabi from Lahore, Pakistan (PJL)</option>
+                                    <option value="STU">Sri Lankan Tamil (STU)</option>
+                                </select>
+                            </div>
+                
+                            <button type="submit" class="btn btn-primary">Select</button>
+                        </form>
+                
+                        {% if manhattan_url %}
+                            <div class="mt-5">
+                                <h2>Tajima's D by Chromosome</h2>
+                                <img src="{{ manhattan_url }}" alt="Tajima's D by Chromosome" class="img-fluid">
+                            </div>
                         
-                            <h3>Our code</h3>
-                            <a href="https://github.com/wmathus/OracularOriole/blob/MAINFRAME/latest_ver.py" target="_blank">
-                                <i class="material-icons">code</i>
+                                <!-- Download Button -->
+                            <div class="mt-3">
+                                <a href="/download/tajima_d_by_chromosome?chromosome={{ chromosome }}&population={{ population }}" class="btn btn-success">
+                                    Download Summary Statistics CSV for Tajima's D
                             </a>
-                            <p class="text-muted">Oracular Oriole</p>
-                        </div>
+                            </div>
+                        {% endif %}
+                        {% if message %}
+                            <div class="alert alert-danger mt-5">{{ message }}</div>
+                        {% endif %}
+                        
+                            <div class="img-world-plot">
+                                {% if tajima_all_chromosomes_url %}
+                                    <h2 class="mt-5">Population Distribution Map</h2>
+                                    <div class="map-container">
+                                        <img src="{{ tajima_all_chromosomes_url }}" alt="TajimasD for All Chromosomes Manhattan Plot" class="img-fluid">
+                                    </div>
+                                {% else %}
+                                    <p class="text-danger mt-5">No manhattan plot for all chromosomes available.</p>
+                                {% endif %}
+    
+                            <div class="img-world-plot">
+                                {% if tajima_histogram_url %}
+                                    <h2 class="mt-5">Tajima Histogram</h2>
+                                    <div class="map-container">
+                                        <img src="{{ tajima_histogram_url }}" alt="TajimasD Histogram" class="img-fluid">
+                                    </div>
+
+                                {% else %}
+                                    <p class="text-danger mt-5">No TajimasD histogram available.</p>
+                                {% endif %}
+    
+                            <div class="img-world-plot">
+                                {% if fst_heatmap_url %}
+                                    <h2 class="mt-5">FST Heatmap</h2>
+                                    <div class="map-container">
+                                        <img src="{{ fst_heatmap_url }}" alt="FST Heatmap" class="img-fluid">
+                                    </div>
+                                    <div class="mt-3">
+                                        <a href="/download_fst_stats" class="btn btn-success">
+                                            Download Summary Statistics Text File for FST
+                                    </a>
+                                    </div>                              
+                                {% else %}
+                                    <p class="text-danger mt-5"> FST heatmap available.</p>
+                                {% endif %}                        
+                        
+                       
                     </div>
-                </div>
+           
+<!-- Footer Section -->
+<footer class="footer">
+    <div class="footer-content">
+        <h2>Queen Mary University of London</h2>
+        <p>&copy; 2025 Bioinformatics Master's Students. All rights reserved.</p>
+        
+        <p>
+            This website explores the relationship between T2D phenotypes and ancestry.
+            You can find more details about our project on our GitHub page.
+        </p>
 
-                <div class="footer">
-                    <h2>Queen Mary University of London</h2>
+        <div class="footer-links">
+            <h3>Follow us</h3>
+            <a href="https://github.com/OracularOriole" target="_blank">
+                <i class="fab fa-github github-icon"></i> GitHub
+            </a>
+        </div>
 
-                <div id="distribution-plot" class="text-center mt-3">
-                </div>
-            </div>
+        <div class="footer-links">
+            <h3>Our Code</h3>
+            <a href="https://github.com/wmathus/OracularOriole/blob/MAINFRAME/latest_ver.py" target="_blank">
+                <i class="material-icons">code</i> Source Code
+            </a>
+        </div>
+
+        <p>If you encounter any issues, please contact us through our GitHub page.</p>
+    </div>
+</footer>
         </div>
     </div>
 
@@ -431,5 +466,12 @@
     <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+    </script>
+
 </body>
 </html>
