@@ -12,9 +12,10 @@ from flask import Response
 import pandas as pd
 import plotly.express as px
 import plotly.io as pio
-from pop_func import fetch_population_id, filter_population_data, generate_population_df, generate_population_plot
+from pop_func import fetch_population_id, generate_population_df, generate_population_plot
 from flask import session, redirect, url_for
-
+import seaborn as sns
+from plotting_functions import plot_tajima_d_by_chromosome, plot_fst_heatmap, plot_tajima_d_all_chromosomes, plot_tajima_d_histogram
 
 app = Flask(__name__)
 
@@ -26,6 +27,7 @@ def get_db_connection(): # Same as Aida's code only it returns an error if a con
         print(f"Database connection error: {err}")
         return None
 
+
 @app.route('/')
 def home():
     # Retrieve sidebar state from session (default to False if not set)
@@ -34,7 +36,8 @@ def home():
     return render_template("index.html", 
                            search_results=None, 
                            manhattan_url=None, 
-                           population_map_url=None, 
+                           population_map_url=None,
+                           chromosome=None, 
                            sidebar_hidden=sidebar_hidden) 
 
 
@@ -56,10 +59,10 @@ def search():
     if request.method == "POST":
         search_type = request.form.get("searchType")
         query = request.form.get("search_term", "").strip()
-        population_type = request.form.get("population_type", "all")
+        population = request.args.get("population")
 
     if not query:
-        return render_template("index.html", search_results=None, manhattan_url=None, population_map_url=None)
+        return render_template("index.html", search_results=None, manhattan_url=None, population_map_url=None, population_type=None, chromosome=None)
 
     connection = get_db_connection()
     if not connection:
@@ -68,7 +71,7 @@ def search():
     try:
         cursor = connection.cursor(dictionary=True, buffered=True)
         global results
-
+        results = []
         phenotype_results = []
 
         if search_type == "snp":
@@ -182,23 +185,31 @@ def search():
         if not results:
             return render_template("index.html", search_results=None, pop_results=None, error_message="No results found.")
 
+        chromosome = results[0]["chromosome"]
+        
         # Fetch population results
         population_results = fetch_population_id(query, search_type)
 
         # Filter and append population names
-        filtered_results = filter_population_data(population_results, population_type)
+        
 
         # Generate DataFrame with allele frequencies, sample sizes, SNP IDs, and population names
-        pop_results = generate_population_df(filtered_results)
+        pop_results = generate_population_df(population_results)
         population_map_url = generate_population_plot(pop_results)
         # Convert phenotype results to HTML table
         phenotype_table_html = pd.DataFrame(phenotype_results).to_html(classes="table table-striped", index=False)
-
+  
+        print(population)
+        chr_taj = list(range(1, 15)) + [15, 20]
+        if chromosome not in chr_taj:
+            return render_template("index.html", search_results=results, population_map_url=population_map_url, error_message=f"No Tajima's D data found for Chromosome {chromosome}.", chromosome=chromosome, selected_population=population)
+       
         # Render template with results
         return render_template(
             "index.html",
             search_results=results,
-            population_type=population_type,
+            selected_population=population,
+            chromosome=chromosome,
             sidebar_hidden=True,
             phenotype_table_html=phenotype_table_html,
             pop_results=pop_results,
@@ -214,9 +225,6 @@ def search():
             cursor.close()
         if connection.is_connected():
             connection.close()
-
-
-
 
 @app.route('/gene/<gene_id>')
 def gene_info(gene_id):
@@ -298,70 +306,7 @@ def download_csv():
     finally:
         if 'cursor' in locals(): cursor.close()
         if connection.is_connected(): connection.close()
-'''
-def generate_manhattan_plot(results):
-    try:
-        if not results:
-            return None
 
-        # Extract multiple SNPs from results
-        valid_data = []
-        for row in results:
-            try:
-                chrom = str(row.get("chromosome", ""))
-                pval = float(row.get("p_value", 1.0))
-                gstart = float(row.get("gene_start", 1.0))
-                gend = float(row.get("gene_end", 1.0))
-                valid_data.append((chrom, gstart, gend, pval))
-            except (ValueError, TypeError) as e:
-                app.logger.error(f"Invalid data row: {row} - Error: {str(e)}")
-                continue
-
-        if not valid_data:
-            return None
-
-        # Create DataFrame from valid data
-        valid_data = pd.DataFrame(valid_data, columns=["chromosome", "gstart", "gend", "p_value"])
-        valid_data["midpoint"] = (valid_data["gstart"] + valid_data["gend"]) / 2    
-        valid_data["-log10(p)"] = -np.log10(valid_data["p_value"])
-
-        # Define colors for chromosomes
-        colors = ["red", "blue", "green", "orange", "purple", "brown", "pink", "gray", "cyan", "magenta"]
-        unique_chromosomes = valid_data["chromosome"].unique()
-        chrom_color_map = {chrom: colors[i % len(colors)] for i, chrom in enumerate(unique_chromosomes)}
-
-        # Create Manhattan plot
-        plt.figure(figsize=(14, 8))
-        for chrom in unique_chromosomes:
-            subset = valid_data[valid_data["chromosome"] == chrom]
-            plt.scatter(subset["midpoint"], subset["-log10(p)"], 
-                        color=chrom_color_map[chrom], label=f"Chr {chrom}", alpha=0.6, edgecolors='w', linewidth=0.5)
-
-        # Plot genome-wide significance line
-        plt.axhline(y=-np.log10(5e-8), color='r', linestyle='--', linewidth=1, label="Genome-wide significance")
-
-        # Add labels and grid
-        plt.xlabel("Genomic Position")
-        plt.ylabel("-log10(p-value)")
-        plt.title("Manhattan Plot")
-        plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
-        plt.grid(True, alpha=0.3)
-        plt.tight_layout()  # Adjust layout to prevent overlap
-
-        # Save plot to a buffer
-        img_buffer = io.BytesIO()
-        plt.savefig(img_buffer, format='png', dpi=300, bbox_inches='tight')
-        plt.close()
-        img_buffer.seek(0)
-
-        # Encode image to Base64 string
-        img_base64 = base64.b64encode(img_buffer.read()).decode('utf-8')
-        return f"data:image/png;base64,{img_base64}"
-
-    except Exception as e:
-        app.logger.error(f"Plot generation failed: {str(e)}")
-        return None
-'''
 def generate_phenotype_table(phenotype_results):
     try:
         if not phenotype_results:
@@ -410,6 +355,131 @@ def generate_phenotype_table(phenotype_results):
         print(f"Error generating phenotype table: {e}")
         return pd.DataFrame()
    
+
+def fetch_fst_data():
+    """Fetches FST data from MySQL and returns it as a DataFrame."""
+    connection = get_db_connection()
+    if not connection:
+        return None
+
+    try:
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM Fixation")
+        rows = cursor.fetchall()
+        cursor.close()
+        connection.close()
+
+        if not rows:
+            print("No FST data found.")
+            return None
+        
+        # Convert fetched data into Pandas DataFrame
+        df = pd.DataFrame(rows)
+        return df
+
+    except mysql.connector.Error as err:
+        print(f"Database error: {err}")
+        return None
+    
+def fetch_tajimas_d_data():
+    pop_id_to_population = {
+    6: "BEB",
+    7: "PJL",
+    2: "STU",  # Might be SLK
+}
+    """
+    Fetch Tajima's D data from the MySQL database and return it as a pandas DataFrame.
+    """
+    connection = get_db_connection()
+    #query = "SELECT * FROM all_tajimas"
+    if not connection:
+        return None
+
+    try:
+        cursor = connection.cursor(dictionary=True)
+        
+
+        # Query to get all Tajima's D data from the "all_tajimas" table
+        cursor.execute("""SELECT * FROM TajimasD""")
+        rows = cursor.fetchall()
+
+        # # Print the fetched rows to debug
+        # print("Fetched rows:", rows)
+        # If no data found, return None
+        if not rows:
+            return None
+        
+        for row in rows:
+            pop_id = row.get("pop_id")
+            if pop_id in pop_id_to_population:
+                row["POPULATION"] = pop_id_to_population[pop_id]
+            else:
+                row["POPULATION"] = "Unknown"  # Default value for unknown pop_ids
+        # Convert the result into a pandas DataFrame
+            if "bin_start" in row:
+                row["BIN_START_Mb"] = row["bin_start"] / 1_000_000  # Convert bp to Mb
+        df = pd.DataFrame(rows)
+        print (df)
+        return df
+
+    except mysql.connector.Error as err:
+        print(f"Database error: {err}")
+        return None
+    finally:
+        if 'cursor' in locals() and cursor is not None: cursor.close()
+        if connection.is_connected(): connection.close()
+
+@app.route("/search/tajima_d_by_chromosome", methods=["GET"])
+def tajima_d_by_chromosome_route():
+    chromosome = request.args.get("chromosome")  # Get chromosome from the URL (passed as a hidden input)
+    population = request.args.get("population")  # Get population from the dropdown
+
+    if not chromosome or not population:
+        return render_template("error.html", message="Please provide both chromosome and population.")
+
+    df = fetch_tajimas_d_data()  # Fetch data from your source (database, CSV, etc.)
+    filtered_df = df[(df["chromosome"].astype(str) == str(chromosome)) & (df["POPULATION"] == population)]
+
+    if filtered_df.empty:
+        return render_template("error.html", message="No data found for the specified chromosome and population.")
+
+    img_url = plot_tajima_d_by_chromosome(chromosome, population, filtered_df)
+
+    if not img_url:
+        return render_template("error.html", message="Failed to generate the plot.")
+    return render_template("index.html", chromosome=chromosome, population=population, manhattan_url=img_url, sidebar_hidden=True)
+
+
+
+@app.route("/tajima_d_all_chromosomes/<population>")
+def tajima_d_all_chromosomes_route(population):
+    df = fetch_tajimas_d_data()
+    print("This is the data that will be used to calculate STD and Mean: \n", df)
+    img_url = plot_tajima_d_all_chromosomes(population, df)
+    return render_template("index.html", manhattan_url=img_url)
+
+@app.route("/tajima_d_histogram/<population>")
+def tajima_d_histogram_route(population):
+    df = fetch_tajimas_d_data()
+    print("This is the data that will be used to calculate STD and Mean: \n", df)
+    img_url = plot_tajima_d_histogram(population, df)
+    return render_template("index.html", histogram_url=img_url)
+
+
+@app.route("/fst_heatmap")
+def fst_heatmap_route():
+    """Fetch FST data, generate heatmap, and send it to the frontend."""
+    df = fetch_fst_data()  # Fetch FST data from MySQL
+    if df is None:
+        return render_template("error.html", message="No FST data available.")
+
+    img_url = plot_fst_heatmap(df)  # Generate heatmap from data
+
+    if not img_url:
+        return render_template("error.html", message="Failed to generate FST heatmap.")
+
+    return render_template("index.html", fst_heatmap_url=img_url)
+
 
 if __name__ == "__main__": # Debugging in the command prompt
     app.run(debug=True, host="0.0.0.0", port=8080)
