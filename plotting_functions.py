@@ -141,7 +141,7 @@ def plot_fst_heatmap(df):
     """
     Generates an FST heatmap from the given DataFrame.
     Assumes columns: ['chromosome', 'comparison', 'fst']
-    returns image
+    Returns image as a Base64 string.
     """
     if df is None or df.empty:
         print("Error: No valid FST data provided for heatmap generation.")
@@ -149,9 +149,12 @@ def plot_fst_heatmap(df):
 
     # Pivot table for heatmap
     heatmap_data = df.pivot_table(index="chromosome", columns="comparison", values="fst", aggfunc="mean")
-    
+
     # Fill NaN values with 0 (to handle missing comparisons)
     heatmap_data_filled = heatmap_data.fillna(0)
+
+    # Replace negative FST values with 0 using NumPy's clip()
+    heatmap_data_filled = heatmap_data_filled.clip(lower=0)
 
     # Create the heatmap
     plt.figure(figsize=(10, 6))
@@ -169,7 +172,6 @@ def plot_fst_heatmap(df):
     # Convert image to Base64 for frontend display
     img_base64 = base64.b64encode(img_buffer.read()).decode("utf-8")
     return f"data:image/png;base64,{img_base64}"
-
 
 
 
@@ -234,7 +236,7 @@ def plot_tajima_d_histogram(population, df):
     plt.ylabel("Frequency")
     plt.title(f"Histogram of Tajima's D Values ({population} Population)")
     plt.grid(True, linestyle="--", alpha=0.75, zorder=0.5)
-    
+    plt.axvline(0, color="black", linestyle="--", linewidth=1.5, zorder=3)
     img_buffer = io.BytesIO()
     plt.savefig(img_buffer, format='png', dpi=300, bbox_inches='tight')
     plt.close()
