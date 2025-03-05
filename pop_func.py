@@ -163,6 +163,5 @@ def generate_population_plot(population_df):
         print(f"Error generating plot: {e}")
         return None
 
-
 if __name__ == "__main__":
     app.run(debug=True)
