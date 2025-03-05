@@ -211,7 +211,7 @@ def search():
         session["population_map_url"] = population_map_url
         session["results"] = results 
         
-        session["population_map_url"] = population_map_url
+
         session["phenotype_table_html"] = phenotype_table_html
         
         chr_taj = list(range(1, 15)) + [15, 20]
@@ -499,7 +499,7 @@ def tajima_d_by_chromosome_route():
     # Store session variables
     session["chromosome"] = chromosome
     session["population"] = population
-    session["histogram_url"] = tajima_histogram_url
+    session["tajima_histogram_url"] = tajima_histogram_url
     session["tajima_all_chromosomes_url"] = tajima_all_chromosomes_url  
     session["fst_heatmap_url"] = fst_heatmap_url
 
@@ -512,7 +512,7 @@ def tajima_d_by_chromosome_route():
         selected_population=population,
         chromosome=chromosome,
         tajima_all_chromosomes_url=session.get("tajima_all_chromosomes_url"),
-        histogram_url=session.get("histogram_url"),
+        tajima_histogram_url=session.get("histogram_url"),
         fst_heatmap_url=session.get("fst_heatmap_url"),
         manhattan_url=img_url,
         population_map_url=session.get("population_map_url"),  # Ensure this variable is stored in session
