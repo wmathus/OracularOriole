@@ -364,10 +364,13 @@ def generate_manhattan_plot(results):
         app.logger.error(f"Plot generation failed: {str(e)}")
         return None
 '''
+
 def process_results_for_plotting():
     """
     Extracts relevant information from the global `results` variable,
     converts it into a DataFrame, and transforms gene start positions into megabases.
+    This is later used to try and plot the lines per SNP in the individual Taj manhattan plot.
+    Can be removed if we find another way to annotate the SNP's present in plots!
 
     Returns:
         pd.DataFrame: Processed DataFrame with required columns.
@@ -376,22 +379,17 @@ def process_results_for_plotting():
         print("No results found to process.")
         return pd.DataFrame()  # Return an empty DataFrame if results are empty
 
-    # Extract relevant information
     processed_data = [
-        {
-            "snp_id": entry["snp_id"],
-            "chromosome": entry["chromosome"],
-            "gene_id": entry["gene_id"],
-            "gene_start_mb": entry["gene_start"] / 1_000_000,  # Convert to megabases
-            "gene_end_mb": entry["gene_end"] / 1_000_000  # Convert to megabases
-        }
+        {"snp_id": entry["snp_id"], "chromosome": entry["chromosome"], "gene_id": entry["gene_id"], "gene_start_mb": entry["gene_start"] / 1_000_000, 
+         "gene_end_mb": entry["gene_end"] / 1_000_000}
         for entry in results
     ]
 
-    # Convert list of dictionaries to DataFrame
+    # Convert dictionaries to DataFrame
     df_processed = pd.DataFrame(processed_data)
 
     return df_processed
+
 
 def generate_phenotype_table(phenotype_results):
     try:
@@ -441,8 +439,9 @@ def generate_phenotype_table(phenotype_results):
         print(f"Error generating phenotype table: {e}")
         return pd.DataFrame()
    
+
 def fetch_fst_data():
-    """Fetches FST data from MySQL and returns it as a DataFrame."""
+    """Fetches FST data from MySQL and returns it as a df."""
     connection = get_db_connection()
     if not connection:
         return None
@@ -466,17 +465,14 @@ def fetch_fst_data():
         print(f"Database error: {err}")
         return None
     
+
 def fetch_tajimas_d_data():
-    pop_id_to_population = {
-    6: "BEB",
-    7: "PJL",
-    2: "STU",  # Might be SLK
-}
+    pop_id_to_population = {6: "BEB", 7: "PJL",2: "STU"} #Translate the changes made to the SQL database, pop id is now BEB, and other population names. 
     """
     Fetch Tajima's D data from the MySQL database and return it as a pandas DataFrame.
+    Used in all the Tajima's D functions.
     """
     connection = get_db_connection()
-    #query = "SELECT * FROM all_tajimas"
     if not connection:
         return None
 
@@ -506,6 +502,8 @@ def fetch_tajimas_d_data():
         df = pd.DataFrame(rows)
         #print (df)
         return df
+    
+
 
     except mysql.connector.Error as err:
         print(f"Database error: {err}")
@@ -528,33 +526,9 @@ def population_map():
     #return render_template("index.html", population_map_url=population_map_url)
     return render_template("index.html", manhattan_url=img_url)
 
-# @app.route("/tajima_d_by_chromosome/<chromosome>/<population>")
-# def tajima_d_by_chromosome_route(chromosome, population):
-#     search_results_df = process_results_for_plotting()
-#     df = fetch_tajimas_d_data()
-#     print(search_results_df)
-    
-#     chromosome = int(chromosome)  # Ensure the input chromosome is a string
-#     filtered_df = df[(df["chromosome"].astype(int) == chromosome) & (df["POPULATION"] == population)]
-#     #print("This is the data that will be used to calculate STD and Mean: \n", filtered_df)
-#         # Ensure chromosome is treated as an integer if applicable
-#     try:
-#         chromosome = int(chromosome)  # Convert to int to match DataFrame
-#     except ValueError:
-#         pass  # Keep as string if conversion fails
-#     #print ("This is the Tajima d by chromosome info: \n", filtered_df)
-#     if filtered_df is None or filtered_df.empty:
-#         return render_template("error.html", message="No Tajima's D data found or an error occurred.")
-
-#     img_url = plot_tajima_d_by_chromosome(chromosome, population, filtered_df)
-#     #print(f"DEBUG: Generated Image URL: {img_url}")
-#     if not img_url:
-#         return render_template("error.html", message="No data found or an error occurred.")
-#     return render_template("index.html", manhattan_url=img_url)
-
 @app.route("/tajima_d_by_chromosome/<chromosome>/<population>")
 def tajima_d_by_chromosome_route(chromosome, population):
-    search_results_df = process_results_for_plotting()  # Get SNP data
+    search_results_df = process_results_for_plotting()  # Get SNP data from the results of an already made search
     df = fetch_tajimas_d_data()  # Get Tajima's D data
 
     chromosome = int(chromosome)  # Ensure chromosome is an integer
@@ -570,6 +544,8 @@ def tajima_d_by_chromosome_route(chromosome, population):
 
     return render_template("index.html", manhattan_url=img_url)
 
+# new_data = fetch_tajimas_d_data()
+# print(new_data.tail())
 @app.route("/tajima_d_all_chromosomes/<population>")
 def tajima_d_all_chromosomes_route(population):
     df = fetch_tajimas_d_data()
@@ -578,17 +554,22 @@ def tajima_d_all_chromosomes_route(population):
     # chromosome_stats = filtered_df.groupby("chromosome").agg({"tajimas_d": ["mean", "std"]})
     # gene_stats["tajimas_d", "std"] = gene_stats["tajimas_d", "std"].fillna(0)
     # chromosome_stats["tajimas_d", "std"] = chromosome_stats["tajimas_d", "std"].fillna(0)
-    print("This is the data that will be used to calculate STD and Mean: \n", filtered_df)
-    print("These are the: \n", gene_stats)
+    # #print("This is the data that will be used to calculate STD and Mean: \n", filtered_df)
+    # print("These are the: \n", gene_stats)
+    # print("These are the chromosome stats: \n", chromosome_stats)
     img_url = plot_tajima_d_all_chromosomes(population, df)
     return render_template("index.html", manhattan_url=img_url)
-
 
 
 @app.route("/tajima_d_histogram/<population>")
 def tajima_d_histogram_route(population):
     df = fetch_tajimas_d_data()
-    print("This is the data that will be used to calculate STD and Mean: \n", df)
+    # filtered_df = df[df["POPULATION"] == population]
+    # gene_stats = filtered_df.groupby("gene_id").agg({"tajimas_d": ["mean", "std"]})
+    # chromosome_stats = filtered_df.groupby("chromosome").agg({"tajimas_d": ["mean", "std"]})
+    # gene_stats["tajimas_d", "std"] = gene_stats["tajimas_d", "std"].fillna(0)
+    # chromosome_stats["tajimas_d", "std"] = chromosome_stats["tajimas_d", "std"].fillna(0)
+    # print("This is the data that will be used to calculate STD and Mean: \n", df)
     img_url = plot_tajima_d_histogram(population, df)
     return render_template("index.html", histogram_url=img_url)
 
@@ -597,6 +578,7 @@ def tajima_d_histogram_route(population):
 def fst_heatmap_route():
     """Fetch FST data, generate heatmap, and send it to the frontend."""
     df = fetch_fst_data()  # Fetch FST data from MySQL
+    print (df)
     if df is None:
         return render_template("error.html", message="No FST data available.")
 
@@ -606,6 +588,152 @@ def fst_heatmap_route():
         return render_template("error.html", message="Failed to generate FST heatmap.")
 
     return render_template("index.html", fst_heatmap_url=img_url)
+
+# @app.route("/download_population_stats/<population>")
+# def download_tajima_stats(population):
+#     # Fetch and filter data again for CSV generation
+#     df = fetch_tajimas_d_data()
+#     filtered_df = df[df["POPULATION"] == population]
+
+#     # Calculate gene and chromosome stats
+#     gene_stats = filtered_df.groupby("gene_id").agg({"tajimas_d": ["mean", "std"]})
+#     chromosome_stats = filtered_df.groupby("chromosome").agg({"tajimas_d": ["mean", "std"]})
+
+#     # Fill NaN values
+#     gene_stats["tajimas_d", "std"] = gene_stats["tajimas_d", "std"].fillna(0)
+#     chromosome_stats["tajimas_d", "std"] = chromosome_stats["tajimas_d", "std"].fillna(0)
+
+#     # Convert both gene_stats and chromosome_stats to CSV format
+#     output = io.StringIO()  # Create an in-memory text stream
+#     writer = csv.writer(output)
+
+#     # Write headers
+#     writer.writerow(['gene_id', 'mean_tajimas_d', 'std_tajimas_d'])  # Column headers for gene stats
+#     for index, row in gene_stats.iterrows():
+#         writer.writerow([index, row[('tajimas_d', 'mean')], row[('tajimas_d', 'std')]])
+
+#     writer.writerow([])  # Blank row to separate the two tables
+
+#     writer.writerow(['chromosome', 'mean_tajimas_d', 'std_tajimas_d'])  # Column headers for chromosome stats
+#     for index, row in chromosome_stats.iterrows():
+#         writer.writerow([index, row[('tajimas_d', 'mean')], row[('tajimas_d', 'std')]])
+
+#     # Set the file pointer to the start of the file
+#     output.seek(0)
+
+#     # Send the generated CSV as a response to download
+#     return Response(output.getvalue(),
+#                     mimetype="text/csv",
+#                     headers={"Content-Disposition": f"attachment;filename={population}_tajima_stats.csv"})
+
+
+@app.route("/download_taj_population/<population>")
+def download_tajima_stats(population):
+    df = fetch_tajimas_d_data()
+    filtered_df = df[df["POPULATION"] == population] #Filters by population, this is for the histogram and manhattan for the entire population. 
+    gene_stats = filtered_df.groupby("gene_id").agg({"tajimas_d": ["mean", "std"]})
+    chromosome_stats = filtered_df.groupby("chromosome").agg({"tajimas_d": ["mean", "std"]})
+
+    # Fill NaN values for standard deviation (std) where there is no variance
+    gene_stats["tajimas_d", "std"] = gene_stats["tajimas_d", "std"].fillna(0)
+    chromosome_stats["tajimas_d", "std"] = chromosome_stats["tajimas_d", "std"].fillna(0)
+
+    # Create an in-memory text stream for CSV generation
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    # Write gene stats headers and data
+    writer.writerow(['gene_id', 'mean_tajimas_d', 'std_tajimas_d'])  # Column headers for gene stats
+    for index, row in gene_stats.iterrows():
+        writer.writerow([index, row[('tajimas_d', 'mean')], row[('tajimas_d', 'std')]])
+    
+    writer.writerow([])  # blank row to separate tables
+
+    writer.writerow(['chromosome', 'mean_tajimas_d', 'std_tajimas_d'])  # Column headers for chromosome stats
+    for index, row in chromosome_stats.iterrows():
+        writer.writerow([index, row[('tajimas_d', 'mean')], row[('tajimas_d', 'std')]])
+
+    # Set the file pointer to the start of the file for download
+    output.seek(0)
+
+    # Send the generated CSV as a response to download
+    return Response(output.getvalue(),
+                    mimetype="text/csv",
+                    headers={"Content-Disposition": f"attachment;filename={population}_tajima_stats.csv"})
+
+@app.route("/download_fst_stats") #Used for FST! 
+def download_fst_stats():
+    # Fetch the FST data from the database
+    df = fetch_fst_data()
+    if df is None or df.empty:
+        return render_template("error.html", message="No FST data available for download.")
+
+    # Calculate the mean and std per chromosome and comparison
+    fst_stats = df.groupby(["chromosome", "comparison"]).agg({"fst": ["mean", "std"]})
+
+    # Reset columns to a simpler format for CSV output
+    fst_stats.columns = ['fst_mean', 'fst_std']
+    fst_stats.reset_index(inplace=True)
+
+    # # Print debugging
+    # print("These are the FST stats for CSV download: \n", fst_stats)
+
+    # Create in-memory CSV file
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    # Write header
+    writer.writerow(['chromosome', 'comparison', 'fst_mean', 'fst_std'])
+    # Write data rows
+    for index, row in fst_stats.iterrows():
+        writer.writerow([row['chromosome'], row['comparison'], row['fst_mean'], row['fst_std']])
+
+    # Reset file pointer to the beginning
+    output.seek(0)
+
+    # Return CSV file as a download response
+    return Response(output.getvalue(),
+                    mimetype="text/csv",
+                    headers={"Content-Disposition": "attachment;filename=fst_stats.csv"})
+
+@app.route("/download_taj_by_chrom/<chromosome>/<population>") #This is going to be used only for the invidiual chrom plot, by population!!!!
+def download_taj_by_chromosome(chromosome, population):
+    df = fetch_tajimas_d_data()
+    filtered_df = df[(df["chromosome"] == int(chromosome)) & (df["POPULATION"] == population)]
+
+    # Calculate gene and chromosome stats, filling N/A with 0
+    gene_stats = filtered_df.groupby("gene_id").agg({"tajimas_d": ["mean", "std"]})
+    chromosome_stats = filtered_df.groupby("chromosome").agg({"tajimas_d": ["mean", "std"]})
+    gene_stats["tajimas_d", "std"] = gene_stats["tajimas_d", "std"].fillna(0)
+    chromosome_stats["tajimas_d", "std"] = chromosome_stats["tajimas_d", "std"].fillna(0)
+
+    # # Print the stats for debugging (optional)
+    # print("These are the gene stats for CSV download: \n", gene_stats)
+    # print("These are the chromosome stats for CSV download: \n", chromosome_stats)
+
+    # Convert both gene_stats and chromosome_stats to CSV format
+    output = io.StringIO()  # Create an in-memory text stream
+    writer = csv.writer(output)
+
+    # Write headers for gene stats
+    writer.writerow(['gene_id', 'mean_tajimas_d', 'std_tajimas_d'])
+    for index, row in gene_stats.iterrows():
+        writer.writerow([index, row[('tajimas_d', 'mean')], row[('tajimas_d', 'std')]])
+
+    writer.writerow([])  # Blank row to separate the two tables
+
+    # Write headers for chromosome stats
+    writer.writerow(['chromosome', 'mean_tajimas_d', 'std_tajimas_d'])
+    for index, row in chromosome_stats.iterrows():
+        writer.writerow([index, row[('tajimas_d', 'mean')], row[('tajimas_d', 'std')]])
+
+    # Set the file pointer to the start of the file
+    output.seek(0)
+
+    # Send the generated CSV as a response to download
+    return Response(output.getvalue(),
+                    mimetype="text/csv",
+                    headers={"Content-Disposition": f"attachment;filename={population}_tajima_by_chromosome_{chromosome}_stats.csv"})
 
 
 if __name__ == "__main__": # Debugging in the command prompt
