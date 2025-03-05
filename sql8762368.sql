@@ -106,6 +106,21 @@ CREATE TABLE SNP_Gene (
     -- If a gene is deleted, all its SNP associations will also be removed
 );
 
+-- Phenotype table 
+CREATE TABLE Phenotype (
+    phenotype_id INT PRIMARY KEY AUTO_INCREMENT,
+    phenotype_name VARCHAR(255) NOT NULL,
+    phenotype_description TEXT
+);
+
+-- Phenotype_SNP table 
+CREATE TABLE Phenotype_SNP (
+    phenotype_id VARCHAR(255),
+    snp_id VARCHAR(50),
+    p_value FLOAT NOT NULL,
+    PRIMARY KEY (phenotype_id, snp_id)
+);
+
 -- ====================================================================
 -- 3. Testing Queries: Verifying Integrity and Performance
 -- ====================================================================
