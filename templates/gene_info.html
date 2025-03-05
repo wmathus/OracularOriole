@@ -73,12 +73,12 @@
         <!-- Gene Information Card with Left-to-Right Animation -->
         <div class="card animated-card" data-aos="fade-right" data-aos-duration="1000">
             <div class="card-body">
-                <p><strong>Gene Ontology ID:</strong> {{ gene_info.go_id }}</p>
-                <p><strong>Gene Ontology Description:</strong> {{ gene_info.go_description }}</p>
-                <p><strong>Gene Description:</strong> {{ gene_info.gene_description }}</p>
-                <p><strong>Ensembl ID:</strong> {{ gene_info.ensembl_id }}</p>
-                <p><strong>Start Position:</strong> {{ gene_info.gene_start }}</p>
-                <p><strong>End Position:</strong> {{ gene_info.gene_end }}</p>
+                <p><strong>Gene Ontology ID:</strong> {{ gene_info.go_id if gene_info.go_id else 'Not available' }}</p>
+                <p><strong>Gene Ontology Description:</strong> {{ gene_info.go_description if gene_info.go_description else 'Not available' }}</p>
+                <p><strong>Gene Description:</strong> {{ gene_info.gene_description if gene_info.gene_description else 'Not available' }}</p>
+                <p><strong>Ensembl ID:</strong> {{ gene_info.ensembl_id if gene_info.ensembl_id else 'Not available' }}</p>
+                <p><strong>Start Position:</strong> {{ gene_info.gene_start if gene_info.gene_start else 'Not available' }}</p>
+                <p><strong>End Position:</strong> {{ gene_info.gene_end if gene_info.gene_end else 'Not available' }}</p>
             </div>
         </div>
 
