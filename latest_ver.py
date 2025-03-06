@@ -504,7 +504,7 @@ def tajima_d_by_chromosome_route():
     filtered_df = df[(df["chromosome"].astype(str) == str(chromosome)) & (df["POPULATION"] == population)]
 
     if filtered_df.empty:
-        return render_template("error.html", message="No data found for the specified chromosome and population.")
+        return render_template("error.html", message="Try searching first.")
 
     img_url = plot_tajima_d_by_chromosome(chromosome, population, filtered_df, search_results_df)
     tajima_histogram_url = plot_tajima_d_histogram(population, df) #Possibly can remove, seems to be repeated.
