@@ -446,7 +446,7 @@ def fetch_tajimas_d_data():
         if 'cursor' in locals() and cursor is not None: cursor.close()
         if connection.is_connected(): connection.close()
 
-def process_results_for_plotting():
+def process_results_for_plotting(): #Important foor the x-axis line for the SNP position! 
     """
     Extracts relevant information from the global `results` variable,
     converts it into a DataFrame, and transforms gene start positions into megabases.
@@ -514,7 +514,7 @@ def tajima_d_by_chromosome_route():
         selected_population=population,
         chromosome=chromosome,
         tajima_all_chromosomes_url=session.get("tajima_all_chromosomes_url"),
-        tajima_histogram_url=session.get("histogram_url"),
+        tajima_histogram_url=session.get("tajima_histogram_url"),
         fst_heatmap_url=session.get("fst_heatmap_url"),
         manhattan_url=img_url,
         population_map_url=session.get("population_map_url"),  # Ensure this variable is stored in session
@@ -584,13 +584,13 @@ def tajima_d_all_chromosomes_route(population):
 
     # Store URLs in session to retain data across requests
     session["tajima_all_chromosomes_url"] = tajima_all_chromosomes_url
-    session["histogram_url"] = tajima_histogram_url
+    session["tajima_histogram_url"] = tajima_histogram_url
     session["fst_heatmap_url"] = fst_heatmap_url
     session["population"] = population
 
     return render_template("index.html", 
                            manhattan_url=session.get("manhattan_url"),
-                           histogram_url=session.get("histogram_url"),
+                           histogram_url=session.get("tajima_histogram_url"),
                            fst_heatmap_url=session.get("fst_heatmap_url"),
                            tajima_all_chromosomes_url=session.get("tajima_all_chromosomes_url"),
                            population=population)

@@ -9,10 +9,10 @@ import io
 import base64
 import seaborn as sns
 import pandas as pd
-from config import DB_CONFIG 
+#from config import DB_CONFIG 
 
 
-# Function to plot Tajima's D by chromosome
+# Function to plot Tajima's D by chromosome. Using older vers.
 def plot_tajima_d_by_chromosome(chromosome, population, df):
     # Ensure consistent data types
     chromosome = str(chromosome)
@@ -75,61 +75,13 @@ def plot_tajima_d_by_chromosome(chromosome, population, df):
     img_base64 = base64.b64encode(img_buffer.read()).decode('utf-8')
     return f"data:image/png;base64,{img_base64}"
 
-# Function to plot FST heatmap
-def plot_fst_heatmap(df):
-    heatmap_data = df.pivot_table(index="chromosome", columns="comparison", values="fst", aggfunc="mean")
-    heatmap_data_filled = heatmap_data.fillna(0)
-    
-    plt.figure(figsize=(10, 6))
-    sns.heatmap(heatmap_data_filled, annot=True, cmap="coolwarm", fmt=".3f", linewidths=0.5)
-    plt.title("Pairwise FST Heatmap (Mean per Chromosome)")
-    plt.xlabel("Population Comparison")
-    plt.ylabel("Chromosome")
-    
-    img_buffer = io.BytesIO()
-    plt.savefig(img_buffer, format='png', dpi=300, bbox_inches='tight')
-    plt.close()
-    img_buffer.seek(0)
-    
-    img_base64 = base64.b64encode(img_buffer.read()).decode('utf-8')
-    return f"data:image/png;base64,{img_base64}"
 
-# def plot_fst_heatmap(df):
-#     """
-#     Generates an FST heatmap from the given DataFrame.
-#     Assumes columns: ['chromosome', 'comparison', 'fst']
-#     """
-#     if df is None or df.empty:
-#         print("Error: No valid FST data provided for heatmap generation.")
-#         return None
 
-#     # Pivot table for heatmap
-#     heatmap_data = df.pivot_table(index="chromosome", columns="comparison", values="fst", aggfunc="mean")
-    
-#     # Fill NaN values with 0 (to handle missing comparisons)
-#     heatmap_data_filled = heatmap_data.fillna(0)
-
-#     # Create the heatmap
-#     plt.figure(figsize=(10, 6))
-#     sns.heatmap(heatmap_data_filled, annot=True, cmap="coolwarm", fmt=".3f", linewidths=0.5)
-#     plt.title("Pairwise FST Heatmap (Mean per Chromosome)")
-#     plt.xlabel("Population Comparison")
-#     plt.ylabel("Chromosome")
-
-#     # Save the plot to an in-memory buffer
-#     img_buffer = io.BytesIO()
-#     plt.savefig(img_buffer, format="png", dpi=300, bbox_inches="tight")
-#     plt.close()
-#     img_buffer.seek(0)
-
-#     # Convert image to Base64 for frontend display
-#     img_base64 = base64.b64encode(img_buffer.read()).decode("utf-8")
-#     return f"data:image/png;base64,{img_base64}"
-
-def plot_fst_heatmap(df):
+def plot_fst_heatmap(df): #
     """
     Generates an FST heatmap from the given DataFrame.
     Assumes columns: ['chromosome', 'comparison', 'fst']
+    Returns image as a Base64 string.
     """
     if df is None or df.empty:
         print("Error: No valid FST data provided for heatmap generation.")
@@ -137,9 +89,12 @@ def plot_fst_heatmap(df):
 
     # Pivot table for heatmap
     heatmap_data = df.pivot_table(index="chromosome", columns="comparison", values="fst", aggfunc="mean")
-    
+
     # Fill NaN values with 0 (to handle missing comparisons)
     heatmap_data_filled = heatmap_data.fillna(0)
+
+    # Replace negative FST values with 0 using NumPy's clip()
+    heatmap_data_filled = heatmap_data_filled.clip(lower=0)
 
     # Create the heatmap
     plt.figure(figsize=(10, 6))
@@ -161,6 +116,10 @@ def plot_fst_heatmap(df):
 
 # Function to plot Tajima's D values across all chromosomes for a population
 def plot_tajima_d_all_chromosomes(population, df):
+    """
+    Generates a Manhattan plot of Tajima's D values for all chromosome in a population.
+    Returns image of the plot. Colour coded by chromosome
+    """
     filtered_df = df[df["POPULATION"] == population]
     
     if filtered_df.empty:
@@ -210,6 +169,11 @@ def plot_tajima_d_all_chromosomes(population, df):
 
 # Function for the histogram plotting (Tajima's D)
 def plot_tajima_d_histogram(population, df):
+    """
+    Generates a frequency distribution plot of Tajima's D values for all chromosome in a population.
+    Returns image of the plot. Added a vertical line at the Taj value of 0
+    X-axis represents the Tajima's D values from -2 to +3, y represents frequency
+    """
     filtered_df = df[df["POPULATION"] == population]
     
     if filtered_df.empty:
@@ -222,7 +186,7 @@ def plot_tajima_d_histogram(population, df):
     plt.ylabel("Frequency")
     plt.title(f"Histogram of Tajima's D Values ({population} Population)")
     plt.grid(True, linestyle="--", alpha=0.75, zorder=0.5)
-    
+    plt.axvline(0, color="black", linestyle="--", linewidth=1.5, zorder=3)
     img_buffer = io.BytesIO()
     plt.savefig(img_buffer, format='png', dpi=300, bbox_inches='tight')
     plt.close()
