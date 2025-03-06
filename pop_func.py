@@ -7,7 +7,7 @@ from flask import Flask
 from config import DB_CONFIG
 app = Flask(__name__)
 
-def get_db_connection(): 
+def get_db_connection(): # Same as Aida's code only it returns an error if a connection isn't made. Better for future use.
     """Database connection with error handling"""
     try:
         return mysql.connector.connect(**DB_CONFIG)
@@ -81,6 +81,7 @@ def generate_population_df(population_results):
         """)
 
         df = pd.DataFrame(cursor.fetchall())
+
 
         return df
 
