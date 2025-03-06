@@ -242,6 +242,13 @@
                                 <tbody>
                                     {% for row in search_results %}
                                     <tr>
+                                        <td>
+                                            {% if row.ensembl_url%}
+                                            <a href="{{ row.ensembl_url }}" target="_blank">{{ row.snp_id }}</a>
+                                            {% else %}
+                                            {{ row.snp_id }}
+                                            {% endif %}
+                                        </td>
                                         <td>{{ row.snp_id }}</td>
                                         <td>{{ row.chromosome | default('N/A') }}</td>
                                         <td>{{ row.gene_start | default('N/A') }}</td>
