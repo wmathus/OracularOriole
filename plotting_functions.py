@@ -12,71 +12,7 @@ import pandas as pd
 from matplotlib.lines import Line2D
 from matplotlib.ticker import MultipleLocator
 
-#from config import DB_CONFIG 
 
-
-# Function to plot Tajima's D by chromosome. Older version here as a backup in case the line/result variable messes plots up.
-# def plot_tajima_d_by_chromosome(chromosome, population, df):
-#     # Ensure consistent data types
-#     chromosome = str(chromosome)
-#     population = str(population)
-
-#     # Print debugging info
-#     print(f"Looking for chromosome {chromosome} and population {population}")
-#     print(f"DataFrame has {len(df)} rows.")
-#     print(f"Unique chromosomes in the data: {df['chromosome'].unique()}")
-#     print(f"Unique populations in the data: {df['POPULATION'].unique()}")
-
-#     # Filter the data based on chromosome and population
-#     filtered_df = df[(df["chromosome"].astype(str) == chromosome) & (df["POPULATION"].astype(str) == population)]
-#     print(f"Filtered DataFrame:\n{filtered_df.head()}")  # Inspect the filtered data
-
-#     if filtered_df.empty:
-#         print(f"No data found for chromosome {chromosome} and population {population}. Skipping plot.")
-#         return None
-    
-#     gene_data = filtered_df[filtered_df["gene_id"].notna()]
-    
-#     distinct_colors = [
-#         "#E6194B", "#3CB44B", "#FFE119", "#0082C8", "#F58231",
-#         "#911EB4", "#46F0F0", "#F032E6", "#D2F53C", "#FABEBE",
-#         "#008080", "#E6BEFF", "#AA6E28", "#800000", "#AAFFC3",
-#         "#808000", "#FFD8B1", "#000080", "#808080", "#A9A9A9",
-#         "#DC143C", "#20B2AA", "#9932CC", "#FF4500", "#2E8B57"
-#     ]
-    
-#     num_genes = 25
-#     unique_genes = gene_data["gene_id"].unique()
-#     gene_color_map = {gene: color for gene, color in zip(unique_genes, distinct_colors)}
-    
-#     gene_stats = gene_data.groupby("gene_id").agg({"tajimas_d": ["mean", "std"]})
-#     chromosome_stats = df.groupby("chromosome").agg({"tajimas_d": ["mean", "std"]})
-    
-#     gene_stats["tajimas_d", "std"] = gene_stats["tajimas_d", "std"].fillna(0)
-#     chromosome_stats["tajimas_d", "std"] = chromosome_stats["tajimas_d", "std"].fillna(0)
-    
-#     plt.figure(figsize=(16, 8))
-    
-#     for gene, color in gene_color_map.items():
-#         gene_subset = gene_data[gene_data["gene_id"] == gene]
-#         plt.scatter(gene_subset["BIN_START_Mb"], gene_subset["tajimas_d"], 
-#                     color=color, alpha=1, marker="x", label=f"Gene: {gene}")
-    
-#     plt.axhline(y=0, color="black", linestyle="--", linewidth=1)
-#     plt.xlabel("Genomic Position (Mb)")
-#     plt.ylabel("Tajima's D")
-#     plt.title(f"Manhattan Plot of Tajima's D Values (Chromosome {chromosome}, {population} Population)")
-#     plt.legend(title="Gene Association", bbox_to_anchor=(1.05, 1), loc="upper left")
-#     plt.grid(True, linestyle="--", alpha=0.75)
-#     plt.tight_layout()
-    
-#     img_buffer = io.BytesIO()
-#     plt.savefig(img_buffer, format='png', dpi=300, bbox_inches='tight')
-#     plt.close()
-#     img_buffer.seek(0)
-    
-#     img_base64 = base64.b64encode(img_buffer.read()).decode('utf-8')
-#     return f"data:image/png;base64,{img_base64}"
 
 
 def plot_tajima_d_by_chromosome(chromosome, population, df, snp_df):
@@ -89,21 +25,9 @@ def plot_tajima_d_by_chromosome(chromosome, population, df, snp_df):
     """
     chromosome = str(chromosome)
     population = str(population)
-    #print ("this is the filtered df: \n", df)
+
     filtered_df = df
-    # 
-    # print ("\n IS THE snp DFn:" , snp_df) #debugging
-    # # Print debugging info
-    # print(f"Looking for chromosome {chromosome} and population {population}")
-    # print(f"DataFrame has {len(df)} rows.")
-    # print(f"Unique chromosomes in the data: {df['chromosome'].unique()}")
-    # print(f"Unique populations in the data: {df['POPULATION'].unique()}")
 
-    # # Filter the data based on chromosome and population THIS CAN BE REMOVED AS IT IS DONE IN THE MAIN CODE
-    # filtered_df = df[(df["chromosome"].astype(str) == chromosome) & (df["POPULATION"].astype(str) == population)]
-    # print(f"Filtered DataFrame:\n{filtered_df.head()}")  # Inspect the filtered data
-
-    # filtered_df = df[(df["chromosome"] == chromosome) & (df["POPULATION"] == population)]
     if filtered_df.empty:
         print(f"No data found for chromosome {chromosome} and population {population}. Skipping plot.")
         return None
@@ -118,16 +42,10 @@ def plot_tajima_d_by_chromosome(chromosome, population, df, snp_df):
         "#DC143C", "#20B2AA", "#9932CC", "#FF4500", "#2E8B57"
     ]
     
-    #num_genes = 25
+
     unique_genes = gene_data["gene_id"].unique()
     gene_color_map = {gene: color for gene, color in zip(unique_genes, distinct_colors)}
-    
-    # gene_stats = gene_data.groupby("gene_id").agg({"tajimas_d": ["mean", "std"]})
-    # chromosome_stats = df.groupby("chromosome").agg({"tajimas_d": ["mean", "std"]})
-    
-    # gene_stats["tajimas_d", "std"] = gene_stats["tajimas_d", "std"].fillna(0)
-    # chromosome_stats["tajimas_d", "std"] = chromosome_stats["tajimas_d", "std"].fillna(0)
-    
+       
     plt.figure(figsize=(16, 8))
     
     for gene, color in gene_color_map.items():
@@ -272,7 +190,7 @@ def plot_tajima_d_histogram(population, df):
         return None
     
     plt.figure(figsize=(10, 6))
-    plt.hist(filtered_df["tajimas_d"], color='goldenrod', alpha=0.9, edgecolor='black', zorder=2, bins=30)
+    plt.hist(filtered_df["tajimas_d"], color="#f4931f", alpha=0.9, edgecolor='black', zorder=2, bins=30)
     plt.xlabel("Tajima's D")
     plt.ylabel("Frequency")
     plt.title(f"Histogram of Tajima's D Values ({population} Population)")
