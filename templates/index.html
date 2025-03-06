@@ -283,7 +283,15 @@
                             {% else %}
                             <p>No phenotype information available</p>
                             {% endif %}
-                        
+
+                            <p class="mt-3">
+                                This table presents the associated phenotypes of SNPs, derived from multi-ancestry data.
+                                The <strong>(+)</strong> and <strong>(-)</strong> symbols next to p-values indicate the direction of association with the corresponding phenotype.
+                            </p>
+                            <p>    
+                                This information is inferred from the Type 2 Diabetes Knowledge Portal. Since odds ratios and beta values are not currently
+                                stored in our database, further details can be found <a href="https://t2d.hugeamp.org/" target = "_blank">here</a>.
+                            </p>                 
            
                     <div class="mt-3">
                         <small>Last Updated: {{ last_update }}</small>

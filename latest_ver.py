@@ -96,7 +96,7 @@ def search():
             # Fetch phenotype data for the given SNP
             cursor2 = connection.cursor(dictionary=True, buffered=True)
             cursor2.execute("""
-                SELECT snp_id, phenotype_id
+                SELECT snp_id, phenotype_id, p_values
                 FROM phenotype_SNP
                 WHERE snp_id = %s
             """, (query,))
@@ -119,7 +119,7 @@ def search():
                 format_strings = ','.join(['%s'] * len(snp_ids))
                 cursor2 = connection.cursor(dictionary=True, buffered=True)
                 cursor2.execute(f"""
-                    SELECT snp_id, phenotype_id
+                    SELECT snp_id, phenotype_id, p_values
                     FROM phenotype_SNP
                     WHERE snp_id IN ({format_strings})
                 """, tuple(snp_ids))
@@ -184,7 +184,7 @@ def search():
                 format_strings = ','.join(['%s'] * len(snp_ids))
                 cursor2 = connection.cursor(dictionary=True, buffered=True)
                 cursor2.execute(f"""
-                    SELECT snp_id, phenotype_id
+                    SELECT snp_id, phenotype_id, p_values
                     FROM phenotype_SNP
                     WHERE snp_id IN ({format_strings})
                 """, tuple(snp_ids))
@@ -327,7 +327,7 @@ def download_csv():
 def generate_phenotype_table(phenotype_results):
     try:
         if not phenotype_results:
-            return pd.DataFrame(columns=["SNP ID", "Phenotype Name", "Phenotype Description"])
+            return pd.DataFrame(columns=["SNP ID", "Phenotype Name", "Phenotype Description", "P-Value"])
 
         # Convert the raw results to a Pandas DataFrame
         df = pd.DataFrame(phenotype_results)
@@ -358,14 +358,14 @@ def generate_phenotype_table(phenotype_results):
             df["phenotype_description"] = "No description available"
 
         # Keep only relevant columns for display
-        df = df[["snp_id", "phenotype_name", "phenotype_description"]]
-        df.rename(columns={"snp_id": "SNP ID", "phenotype_name": "Phenotype Name", "phenotype_description": "Phenotype Description"}, inplace=True)
+        df = df[["snp_id", "phenotype_name", "phenotype_description", "p_values"]]
+        df.rename(columns={"snp_id": "SNP ID", "phenotype_name": "Phenotype Name", "phenotype_description": "Phenotype Description", "p_values": "p_values"}, inplace=True)
 
         return df
 
     except Exception as e:
         print(f"Error generating phenotype table: {e}")
-        return pd.DataFrame(columns=["SNP ID", "Phenotype Name", "Phenotype Description"])
+        return pd.DataFrame(columns=["SNP ID", "Phenotype Name", "Phenotype Description", "P-Value"])
 
 
     except Exception as e:
