@@ -207,7 +207,7 @@ def search():
                 cursor2.close()
 
         if not results:
-            return render_template("index.html", search_results=None, pop_results=None, error_message="No results found.")
+            return render_template("index.html", search_results=None, pop_results=None, error_message="No results found. Please try another query")
 
         chromosome = results[0]["chromosome"]
         
@@ -221,7 +221,11 @@ def search():
         pop_results = generate_population_df(population_results)
         population_map_url = generate_population_plot(pop_results)
         # Convert phenotype results to HTML table
-        phenotype_table_html = table_df.to_html(classes="table table-striped", index=False)
+        if not table_df.empty:
+            phenotype_table_html = table_df.to_html(classes="table table-striped", index=False)
+        else:
+            phenotype_table_html = None
+        
         session["pop_results"] = pop_results
         session["population_map_url"] = population_map_url
         session["results"] = results 
@@ -502,7 +506,7 @@ def tajima_d_by_chromosome_route():
 
     df = fetch_tajimas_d_data()
     filtered_df = df[(df["chromosome"].astype(str) == str(chromosome)) & (df["POPULATION"] == population)]
-
+    note = f"<i>Note:</i> Manhattan plot showing Tajima's D values across chromosome {chromosome} in population {population}."
     if filtered_df.empty:
         return render_template("error.html", message="Try searching first.")
 
@@ -542,7 +546,8 @@ def tajima_d_by_chromosome_route():
         sidebar_hidden=True,
         phenotype_table_html=session.get("phenotype_table_html", ""),
         pop_results=session.get("pop_results", []),
-        error_message=None
+        error_message=None,
+        note=note
     )
 
 
