@@ -17,8 +17,7 @@ from flask import session, redirect, url_for
 import seaborn as sns
 from plotting_functions import plot_tajima_d_by_chromosome, plot_fst_heatmap, plot_tajima_d_all_chromosomes, plot_tajima_d_histogram
 from flask_session import Session
-from matplotlib.lines import Line2D
-from matplotlib.ticker import MultipleLocator
+import datetime
 
 app = Flask(__name__)
 app.secret_key = "oriole"
@@ -49,7 +48,8 @@ def home():
                            manhattan_url=None, 
                            population_map_url=None,
                            chromosome=None, 
-                           sidebar_hidden=sidebar_hidden) 
+                           sidebar_hidden=sidebar_hidden,
+                           utc_dt=datetime.datetime.utcnow()) 
 
 
 @app.route('/hide_sidebar')
@@ -81,10 +81,10 @@ def search():
 
     try:
         cursor = connection.cursor(dictionary=True, buffered=True)
-        global results
+
         results = []
         phenotype_results = []
-        session["results"] = results 
+
         if search_type == "snp":
             cursor.execute("""
                 SELECT SNPs.snp_id, SNPs.chromosome, SNPs.p_value, SNPs.odds_ratio, SNPs.link, SNP_Gene.gene_id, Gene_Functions.gene_start, Gene_Functions.gene_end
@@ -94,11 +94,16 @@ def search():
                 WHERE SNPs.snp_id = %s
             """, (query,))
             results = cursor.fetchall()
+            for snp in results:
+                snp_id = snp["snp_id"]
+                ensembl_url = f"https://www.ensembl.org/Homo_sapiens/Variation/HighLD?db=core;v={snp_id}"
+                snp['ensembl_url'] = ensembl_url
+
 
             # Fetch phenotype data for the given SNP
             cursor2 = connection.cursor(dictionary=True, buffered=True)
             cursor2.execute("""
-                SELECT snp_id, phenotype_id
+                SELECT snp_id, phenotype_id, p_values
                 FROM phenotype_SNP
                 WHERE snp_id = %s
             """, (query,))
@@ -114,14 +119,17 @@ def search():
                 WHERE SNP_Gene.gene_id = %s
             """, (query,))
             results = cursor.fetchall()
-
+            for snp in results:
+                snp_id = snp["snp_id"]
+                ensembl_url = f"https://www.ensembl.org/Homo_sapiens/Variation/HighLD?db=core;v={snp_id}"
+                snp['ensembl_url'] = ensembl_url
             # Fetch phenotype data for the SNPs related to the gene
             snp_ids = [row["snp_id"] for row in results]
             if snp_ids:
                 format_strings = ','.join(['%s'] * len(snp_ids))
                 cursor2 = connection.cursor(dictionary=True, buffered=True)
                 cursor2.execute(f"""
-                    SELECT snp_id, phenotype_id
+                    SELECT snp_id, phenotype_id, p_values
                     FROM phenotype_SNP
                     WHERE snp_id IN ({format_strings})
                 """, tuple(snp_ids))
@@ -179,6 +187,11 @@ def search():
                 """, (chromosome_n,))
 
             results = cursor.fetchall()
+            for snp in results:
+                snp_id = snp["snp_id"]
+                ensembl_url = f"https://www.ensembl.org/Homo_sapiens/Variation/HighLD?db=core;v={snp_id}"
+                snp['ensembl_url'] = ensembl_url
+            
             
             # Fetch phenotype data for the SNPs
             snp_ids = [row["snp_id"] for row in results]
@@ -186,7 +199,7 @@ def search():
                 format_strings = ','.join(['%s'] * len(snp_ids))
                 cursor2 = connection.cursor(dictionary=True, buffered=True)
                 cursor2.execute(f"""
-                    SELECT snp_id, phenotype_id
+                    SELECT snp_id, phenotype_id, p_values
                     FROM phenotype_SNP
                     WHERE snp_id IN ({format_strings})
                 """, tuple(snp_ids))
@@ -284,19 +297,21 @@ def download_csv():
     connection = get_db_connection()
     if not connection:
         return render_template("error.html", message="Database connection failed")
-
+    
+    results = session.get("results", [])
+    
     try:
         def generate():
-            data = io.StringIO()  # Creates an in-memory buffer (StringIO object) to store CSV data temporarily.
-            writer = csv.writer(data) # Transform binary data to csv. Easy Peasy Lemon Squeeky.
-            
-            # Write header
-            writer.writerow(['SNP_ID', 'Chromosome', 'Gene_Start' , 'Gene_End', 'P_Value', 'Odds_Ratio', 'Mapped Gene', 'Link'])
-            yield data.getvalue() # Sends the row to the user. Remember this is a different route.
-            data.seek(0) # reset and clear the buffer for the next row
-            data.truncate(0)
+            data = io.StringIO()  
+            writer = csv.writer(data)  
 
-            # Write rows from the results dictionary
+            # Write header
+            writer.writerow(['SNP_ID', 'Chromosome', 'Gene_Start', 'Gene_End', 'P_Value', 'Odds_Ratio', 'Mapped Gene', 'Link'])
+            yield data.getvalue()  
+            data.seek(0)  
+            data.truncate(0)  
+
+            # Write rows from the session-stored results
             for row in results:
                 writer.writerow([
                     row.get('snp_id', ''),
@@ -308,28 +323,25 @@ def download_csv():
                     row.get('gene_id', ''),
                     row.get('link', ''),
                 ])
-                yield data.getvalue() # Writes each row 
+                yield data.getvalue()
                 data.seek(0)
                 data.truncate(0)
 
         response = Response(
-            generate(), # This is the above function called.
-            mimetype='text/csv', # Tells the browser what type of file it is.
-            headers={'Content-Disposition': 'attachment; filename=snps_data.csv'} # Forces the browser to download the file with the name snps_data.csv
+            generate(),
+            mimetype='text/csv',
+            headers={'Content-Disposition': 'attachment; filename=snps_data.csv'}
         )
         return response
 
-    except mysql.connector.Error as err:
-        print(f"Database error: {err}")
-        return render_template("error.html", message="Download failed")
-    finally:
-        if 'cursor' in locals(): cursor.close()
-        if connection.is_connected(): connection.close()
+    except Exception as e:
+        print(f"Error generating CSV: {e}")
+        return render_template("error.html", message="Download failed.")
 
 def generate_phenotype_table(phenotype_results):
     try:
         if not phenotype_results:
-            return pd.DataFrame(columns=["SNP ID", "Phenotype Name", "Phenotype Description"])
+            return pd.DataFrame(columns=["SNP ID", "Phenotype Name", "Phenotype Description", "P-Value"])
 
         # Convert the raw results to a Pandas DataFrame
         df = pd.DataFrame(phenotype_results)
@@ -360,14 +372,14 @@ def generate_phenotype_table(phenotype_results):
             df["phenotype_description"] = "No description available"
 
         # Keep only relevant columns for display
-        df = df[["snp_id", "phenotype_name", "phenotype_description"]]
-        df.rename(columns={"snp_id": "SNP ID", "phenotype_name": "Phenotype Name", "phenotype_description": "Phenotype Description"}, inplace=True)
+        df = df[["snp_id", "phenotype_name", "phenotype_description", "p_values"]]
+        df.rename(columns={"snp_id": "SNP ID", "phenotype_name": "Phenotype Name", "phenotype_description": "Phenotype Description", "p_values": "p_values"}, inplace=True)
 
         return df
 
     except Exception as e:
         print(f"Error generating phenotype table: {e}")
-        return pd.DataFrame(columns=["SNP ID", "Phenotype Name", "Phenotype Description"])
+        return pd.DataFrame(columns=["SNP ID", "Phenotype Name", "Phenotype Description", "P-Value"])
 
 
     except Exception as e:
@@ -413,18 +425,13 @@ def fetch_tajimas_d_data():
     #query = "SELECT * FROM all_tajimas"
     if not connection:
         return None
-
     try:
         cursor = connection.cursor(dictionary=True)
         
-
         # Query to get all Tajima's D data from the "all_tajimas" table
         cursor.execute("""SELECT * FROM TajimasD""")
         rows = cursor.fetchall()
 
-        # # Print the fetched rows to debug
-        # print("Fetched rows:", rows)
-        # If no data found, return None
         if not rows:
             return None
         
@@ -438,7 +445,7 @@ def fetch_tajimas_d_data():
             if "bin_start" in row:
                 row["BIN_START_Mb"] = row["bin_start"] / 1_000_000  # Convert bp to Mb
         df = pd.DataFrame(rows)
-        print (df)
+
         return df
 
     except mysql.connector.Error as err:
@@ -448,32 +455,40 @@ def fetch_tajimas_d_data():
         if 'cursor' in locals() and cursor is not None: cursor.close()
         if connection.is_connected(): connection.close()
 
-def process_results_for_plotting(): #Important foor the x-axis line for the SNP position! 
+def process_results_for_plotting():
     """
-    Extracts relevant information from the global `results` variable,
+    Extracts relevant information from the session-stored `results` variable,
     converts it into a DataFrame, and transforms gene start positions into megabases.
-    This is later used to try and plot the lines per SNP in the individual Taj manhattan plot.
-    Can be removed if we find another way to annotate the SNP's present in plots!
 
     Returns:
         pd.DataFrame: Processed DataFrame with required columns.
     """
-    #print("This is before the function: \n", results) #Debugging
+    # Retrieve results from session
+    results = session.get("results", [])  # Directly retrieve the list
+
     if not results:
         print("No results found to process.")
         return pd.DataFrame()  # Return an empty DataFrame if results are empty
 
+    # Process data safely
     processed_data = [
-        {"snp_id": entry["snp_id"], "chromosome": entry["chromosome"], "gene_id": entry["gene_id"], "gene_start_mb": entry["gene_start"] / 1_000_000, 
-         "gene_end_mb": entry["gene_end"] / 1_000_000}
+        {
+            "snp_id": entry.get("snp_id", ""),
+            "chromosome": entry.get("chromosome", ""),
+            "gene_id": entry.get("gene_id", ""),
+            "gene_start_mb": entry.get("gene_start", 0) / 1_000_000 if entry.get("gene_start") is not None else None,
+            "gene_end_mb": entry.get("gene_end", 0) / 1_000_000 if entry.get("gene_end") is not None else None
+        }
         for entry in results
     ]
 
-    # Convert dictionaries to DataFrame
+    # Convert to DataFrame
     df_processed = pd.DataFrame(processed_data)
-    #print("\n This is the Data being processed from the PROCESSING FUNCTION: \n", df_processed). Debugging 
-    #print("This is after the function: \n", results) #Debugging
+
     return df_processed
+
+
+
 
 @app.route("/search/tajima_d_by_chromosome", methods=["GET"]) #implementing route, uses search results to plot lines on graph
 def tajima_d_by_chromosome_route():
@@ -530,59 +545,7 @@ def tajima_d_by_chromosome_route():
         error_message=None
     )
 
-# @app.route("/search/tajima_d_by_chromosome", methods=["GET"]) #THIS is how it was before, as a backup, REMOVE IN FINAL
-# def tajima_d_by_chromosome_route():
-#     chromosome = request.args.get("chromosome")  
-#     population = request.args.get("population")  
-#     #search_results_df = process_results_for_plotting()
 
-#     if not chromosome or not population:
-#         return render_template("error.html", message="Please provide both chromosome and population.")
-
-#     df = fetch_tajimas_d_data()
-#     filtered_df = df[(df["chromosome"].astype(str) == str(chromosome)) & (df["POPULATION"] == population)]
-
-#     if filtered_df.empty:
-#         return render_template("error.html", message="No data found for the specified chromosome and population.")
-
-#     img_url = plot_tajima_d_by_chromosome(chromosome, population, filtered_df)
-#     tajima_histogram_url = plot_tajima_d_histogram(population, df) #Possibly can remove, seems to be repeated.
-#     df_fst = fetch_fst_data()
-
-#     # Generate image URLs
-#     tajima_all_chromosomes_url = plot_tajima_d_all_chromosomes(population, df)
-#     tajima_histogram_url = plot_tajima_d_histogram(population, df) #The repeat
-#     fst_heatmap_url = plot_fst_heatmap(df_fst)
-
-
-#     if not img_url:
-#         return render_template("error.html", message="Failed to generate the plot.")
-
-#     # Store session variables
-#     session["chromosome"] = chromosome
-#     session["population"] = population
-#     session["tajima_histogram_url"] = tajima_histogram_url
-#     session["tajima_all_chromosomes_url"] = tajima_all_chromosomes_url  
-#     session["fst_heatmap_url"] = fst_heatmap_url
-
-#     results = session.get("results", [])
-
-#     # Render template with results
-#     return render_template(
-#         "index.html",
-#         search_results=results,
-#         selected_population=population,
-#         chromosome=chromosome,
-#         tajima_all_chromosomes_url=session.get("tajima_all_chromosomes_url"),
-#         tajima_histogram_url=session.get("tajima_histogram_url"),
-#         fst_heatmap_url=session.get("fst_heatmap_url"),
-#         manhattan_url=img_url,
-#         population_map_url=session.get("population_map_url"),  # Ensure this variable is stored in session
-#         sidebar_hidden=True,
-#         phenotype_table_html=session.get("phenotype_table_html", ""),
-#         pop_results=session.get("pop_results", []),
-#         error_message=None
-#     )
 
 @app.route("/download/tajima_d_by_chromosome", methods=["GET"])
 def download_tajima_d_by_chromosome():
