@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, Response, jsonify
-import mysql.connector
 from config import DB_CONFIG # Custom database config (e.g., host, user, password)
+import mysql.connector
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -12,9 +12,22 @@ from flask import Response
 import pandas as pd
 import plotly.express as px
 import plotly.io as pio
-from flask import send_from_directory
+from pop_func import fetch_population_id, generate_population_df, generate_population_plot
+from flask import session, redirect, url_for
+import seaborn as sns
+from plotting_functions import plot_tajima_d_by_chromosome, plot_fst_heatmap, plot_tajima_d_all_chromosomes, plot_tajima_d_histogram
+from flask_session import Session
+import datetime
 
 app = Flask(__name__)
+app.secret_key = "oriole"
+# Configure server-side session storage
+# Configure session to use filesystem (store session data on the server)
+app.config["SESSION_TYPE"] = "filesystem"
+app.config["SESSION_PERMANENT"] = False  # Optional: session expires on browser close
+app.config["SESSION_FILE_DIR"] = "./flask_session"  # Folder to store session files
+
+Session(app)
 
 def get_db_connection(): # Same as Aida's code only it returns an error if a connection isn't made. Better for future use.
     """Database connection with error handling"""
@@ -24,77 +37,226 @@ def get_db_connection(): # Same as Aida's code only it returns an error if a con
         print(f"Database connection error: {err}")
         return None
 
-@app.route("/")
-def home(): # Defines the home page where search hasn't been made. Nothing in the search results. No plot no results in the statistics section.
-    return render_template("index.html", search_results=None, manhattan_url=None)
 
-@app.route("/search", methods=["GET", "POST"]) # **The POST option is required so that we can save the query submission for further analysis. GET only displays the table.
+@app.route('/')
+def home():
+    # Retrieve sidebar state from session (default to False if not set)
+    sidebar_hidden = session.get('sidebar_hidden', False)
+    
+    return render_template("index.html", 
+                           search_results=None, 
+                           manhattan_url=None, 
+                           population_map_url=None,
+                           chromosome=None, 
+                           sidebar_hidden=sidebar_hidden,
+                           utc_dt=datetime.datetime.utcnow()) 
+
+
+@app.route('/hide_sidebar')
+def hide_sidebar():
+    session['sidebar_hidden'] = True  # Set sidebar as hidden
+    return redirect(url_for('home'))
+
+@app.route('/show_sidebar')
+def show_sidebar():
+    session['sidebar_hidden'] = False  # Reset sidebar visibility
+    return redirect(url_for('home'))
+
+@app.route("/search", methods=["GET", "POST"])
 def search():
-    if request.method == "POST": # POST is often used to save username and password. The past queries are stored in the search bar. How it works for the frontend: (e.g., via an HTML <form> with method="POST")  
-        search_type = request.form.get("searchType") # This bit is important because we need the plots for the pvalues to be drawn in the time of search submission (e.g., Manhattan plot, or other that you can think of). **We will use a similar structure for population stats. Keep that in mind pls.
-        query = request.form.get("search_term", "").strip() # Strip = no unwanted spaces in the search pls >:( **A line can be added here for uppercase and lowercase queries. 
-   
+    query = ""  # Initialize query with a default value
+    search_type = ""  # Initialize search_type with a default value
+    population = ""
+    if request.method == "POST":
+        search_type = request.form.get("searchType")
+        query = request.form.get("search_term", "").strip()
+        population = request.args.get("population")
 
-    if not query: # Defines the home page where search hasn't been made. Nothing in the search results. The route here is different therefore this line is still necessary.
-        return render_template("index.html", search_results=None, manhattan_url=None)
+    if not query:
+        return render_template("index.html", search_results=None, manhattan_url=None, population_map_url=None, population_type=None, chromosome=None)
 
     connection = get_db_connection()
-    if not connection: # Redirect to error html frontpage, if there is and issue with MySql. Daddy will work on how that will look like later kitten whiskers.
+    if not connection:
         return render_template("error.html", message="Database connection failed")
 
     try:
-        cursor = connection.cursor(dictionary=True)
-        
+        cursor = connection.cursor(dictionary=True, buffered=True)
+
+        results = []
+        phenotype_results = []
+
         if search_type == "snp":
             cursor.execute("""
-            SELECT SNPs.snp_id, SNPs.chromosome, SNPs.p_value, SNPs.link, SNP_Gene.gene_id, Gene_Functions.gene_start, Gene_Functions.gene_end
-            FROM SNPs
-            LEFT JOIN SNP_Gene ON SNPs.snp_id = SNP_Gene.snp_id
-            LEFT JOIN Gene_Functions ON SNP_Gene.gene_id = Gene_Functions.gene_id
-            WHERE SNPs.snp_id = %s
+                SELECT SNPs.snp_id, SNPs.chromosome, SNPs.p_value, SNPs.odds_ratio, SNPs.link, SNP_Gene.gene_id, Gene_Functions.gene_start, Gene_Functions.gene_end
+                FROM SNPs
+                LEFT JOIN SNP_Gene ON SNPs.snp_id = SNP_Gene.snp_id
+                LEFT JOIN Gene_Functions ON SNP_Gene.gene_id = Gene_Functions.gene_id
+                WHERE SNPs.snp_id = %s
             """, (query,))
-        
+            results = cursor.fetchall()
+            for snp in results:
+                snp_id = snp["snp_id"]
+                ensembl_url = f"https://www.ensembl.org/Homo_sapiens/Variation/HighLD?db=core;v={snp_id}"
+                snp['ensembl_url'] = ensembl_url
+
+
+            # Fetch phenotype data for the given SNP
+            cursor2 = connection.cursor(dictionary=True, buffered=True)
+            cursor2.execute("""
+                SELECT snp_id, phenotype_id, p_values
+                FROM phenotype_SNP
+                WHERE snp_id = %s
+            """, (query,))
+            phenotype_results = cursor2.fetchall()
+            cursor2.close()
+
         elif search_type == "gene":
             cursor.execute("""
-            SELECT SNPs.snp_id, SNPs.p_value, SNPs.link, SNPs.chromosome, SNP_Gene.gene_id, Gene_Functions.gene_start, Gene_Functions.gene_end
-            FROM SNP_Gene 
-            JOIN SNPs ON SNP_Gene.snp_id = SNPs.snp_id
-            JOIN Gene_Functions ON SNP_Gene.gene_id = Gene_Functions.gene_id
-            WHERE SNP_Gene.gene_id = %s 
+                SELECT SNPs.snp_id, SNPs.p_value, SNPs.odds_ratio, SNPs.link, SNPs.chromosome, SNP_Gene.gene_id, Gene_Functions.gene_start, Gene_Functions.gene_end
+                FROM SNP_Gene
+                JOIN SNPs ON SNP_Gene.snp_id = SNPs.snp_id
+                JOIN Gene_Functions ON SNP_Gene.gene_id = Gene_Functions.gene_id
+                WHERE SNP_Gene.gene_id = %s
             """, (query,))
-        
+            results = cursor.fetchall()
+            for snp in results:
+                snp_id = snp["snp_id"]
+                ensembl_url = f"https://www.ensembl.org/Homo_sapiens/Variation/HighLD?db=core;v={snp_id}"
+                snp['ensembl_url'] = ensembl_url
+            # Fetch phenotype data for the SNPs related to the gene
+            snp_ids = [row["snp_id"] for row in results]
+            if snp_ids:
+                format_strings = ','.join(['%s'] * len(snp_ids))
+                cursor2 = connection.cursor(dictionary=True, buffered=True)
+                cursor2.execute(f"""
+                    SELECT snp_id, phenotype_id, p_values
+                    FROM phenotype_SNP
+                    WHERE snp_id IN ({format_strings})
+                """, tuple(snp_ids))
+                phenotype_results = cursor2.fetchall()
+                cursor2.close()
+
         elif search_type == "chromosome":
-            cursor.execute("""
-            SELECT SNPs.snp_id, SNPs.p_value, SNPs.link, SNPs.chromosome, SNP_Gene.gene_id, Gene_Functions.gene_start, Gene_Functions.gene_end
-            FROM SNPs
-            JOIN SNP_Gene ON SNPs.snp_id = SNP_Gene.snp_id
-            JOIN Gene_Functions ON SNP_Gene.gene_id = Gene_Functions.gene_id
-            WHERE SNPs.chromosome = %s
-            """, (query,))
-                           
-        
-        else:
-            return render_template("index.html", search_results=None, manhattan_url=None) #Leaves the webpage blank, resets to home kinda.
+            # Parse the query into chromosome and position range
+            parts = query.split(":")
+            chromosome_n = parts[0]
+            
+            if len(parts) == 1:
+               start_pos, end_pos = None, None 
+            else:
+                position_part = parts[1] 
+                # Handle position range
+                
+                if "-" in position_part:
+        # Case: chromosome:start-end (e.g., "4:75576495-75576500")
+                    position_parts = position_part.split("-")
+                    if len(position_parts) == 2:
+                        try:
+                            start_pos = int(position_parts[0])
+                            end_pos = int(position_parts[1])
+                        except ValueError:
+                            return render_template("error.html", message="Invalid position range. Expected format: 'chromosome:start-end'")
+                else:
+        # Case: chromosome:position (e.g., "4:75576495")
+                    try:
+                        start_pos = int(position_part)
+                        end_pos = start_pos  # Treat single position as both start and end
+                    except ValueError:
+                        return render_template("error.html", message="Invalid position. Expected format: 'chromosome:position'")          
 
-        
-        global results # To be able to use the results table in the download function. This globalizes the variable.
-        results = cursor.fetchall() # Calling cursor dictionary from above.
-        print (results) #Remove this in the final edit, used to see the dictionary structure of the data retrieved from SQL. 
+            # Fetch SNPs and genes based on the chromosome and position range
+            if start_pos is not None and end_pos is not None:
+                cursor.execute("""
+                    SELECT SNPs.snp_id, SNPs.p_value, SNPs.odds_ratio, SNPs.link, SNPs.chromosome, SNP_Gene.gene_id, Gene_Functions.gene_start, Gene_Functions.gene_end
+                    FROM SNPs
+                    JOIN SNP_Gene ON SNPs.snp_id = SNP_Gene.snp_id
+                    JOIN Gene_Functions ON SNP_Gene.gene_id = Gene_Functions.gene_id
+                    WHERE SNPs.chromosome = %s
+                    AND (Gene_Functions.gene_start BETWEEN %s AND %s
+                    OR Gene_Functions.gene_end BETWEEN %s AND %s
+                    OR (Gene_Functions.gene_start <= %s AND Gene_Functions.gene_end >= %s))
+                """, (chromosome_n, start_pos, end_pos, start_pos, end_pos, start_pos, end_pos))
+            else:
+                # Fetch all SNPs and genes on the specified chromosome
+                cursor.execute("""
+                    SELECT SNPs.snp_id, SNPs.p_value, SNPs.odds_ratio, SNPs.link, SNPs.chromosome, SNP_Gene.gene_id, Gene_Functions.gene_start, Gene_Functions.gene_end
+                    FROM SNPs
+                    JOIN SNP_Gene ON SNPs.snp_id = SNP_Gene.snp_id
+                    JOIN Gene_Functions ON SNP_Gene.gene_id = Gene_Functions.gene_id
+                    WHERE SNPs.chromosome = %s
+                """, (chromosome_n,))
 
-        manhattan_url = generate_manhattan_plot(results) if results else None # Calling the plot function, why this is called URL will be explained in the fumction below.
-        
-        return render_template("index.html",
-                             search_results=results,
-                             manhattan_url=manhattan_url)
+            results = cursor.fetchall()
+            for snp in results:
+                snp_id = snp["snp_id"]
+                ensembl_url = f"https://www.ensembl.org/Homo_sapiens/Variation/HighLD?db=core;v={snp_id}"
+                snp['ensembl_url'] = ensembl_url
+            
+            
+            # Fetch phenotype data for the SNPs
+            snp_ids = [row["snp_id"] for row in results]
+            if snp_ids:
+                format_strings = ','.join(['%s'] * len(snp_ids))
+                cursor2 = connection.cursor(dictionary=True, buffered=True)
+                cursor2.execute(f"""
+                    SELECT snp_id, phenotype_id, p_values
+                    FROM phenotype_SNP
+                    WHERE snp_id IN ({format_strings})
+                """, tuple(snp_ids))
+                phenotype_results = cursor2.fetchall()
+                cursor2.close()
 
-    except mysql.connector.Error as err: 
-        print(f"Database error: {err}") # Displays the error type from MySql.
-        return render_template("error.html", message="Database query failed")
-    finally: # This ensures that resources are released and connections are closed.  
-        if 'cursor' in locals(): cursor.close() # Regardless of if the cursor is empty or full. The connection is closed. It might give an error if it is empty otherwvise.
-        if connection.is_connected(): connection.close() # If the connection is already closed (e.g., due to an error), calling connection.close() again would raise an exception. Hence "is_connected". 
-        # MySQL has a database connection limit, which is controlled by the "max_connections" system variable; this defines the maximum number of simultaneous client connections allowed to connect to the MySQL server, and the default value is usually around 151 connections depending on the MySQL version. 
-        # Consider adding this if the function won't be necessarily continuosly used.
+        if not results:
+            return render_template("index.html", search_results=None, pop_results=None, error_message="No results found.")
+
+        chromosome = results[0]["chromosome"]
+        
+        # Fetch population results
+        population_results = fetch_population_id(query, search_type)
+
+        # Filter and append population names
+        
+        table_df = generate_phenotype_table(phenotype_results)
+        # Generate DataFrame with allele frequencies, sample sizes, SNP IDs, and population names
+        pop_results = generate_population_df(population_results)
+        population_map_url = generate_population_plot(pop_results)
+        # Convert phenotype results to HTML table
+        phenotype_table_html = table_df.to_html(classes="table table-striped", index=False)
+        session["pop_results"] = pop_results
+        session["population_map_url"] = population_map_url
+        session["results"] = results 
+        session["chromosome"] = chromosome
+        
+        
+
+        session["phenotype_table_html"] = phenotype_table_html
+        
+        chr_taj = list(range(1, 15)) + [15, 20]
+        if chromosome not in chr_taj:
+            return render_template("index.html", search_results=results, population_map_url=population_map_url, error_message=f"No Tajima's D data found for Chromosome {chromosome}.", chromosome=chromosome, selected_population=population)
+
+
+        # Render template with results
+        return render_template(
+            "index.html",
+            search_results=results,
+            selected_population=population,
+            chromosome=chromosome,
+            sidebar_hidden=True,
+            phenotype_table_html=phenotype_table_html,
+            pop_results=pop_results,
+            population_map_url=population_map_url,
+            error_message=None
+        )
+
+    except mysql.connector.Error as err:
+        print(f"Database error: {err}")
+        return render_template("index.html", search_results=None, pop_results=None, error_message="Database query failed.")
+    finally:
+        if cursor:
+            cursor.close()
+        if connection.is_connected():
+            connection.close()
 
 @app.route('/gene/<gene_id>')
 def gene_info(gene_id):
@@ -107,16 +269,19 @@ def gene_info(gene_id):
 
         # Fetch gene information from the database
         cursor.execute("""
-        SELECT Gene_Functions.gene_id, Gene_Functions.gene_description, Gene_Functions.gene_start, Gene_Functions.gene_end, SNP_Gene.snp_id
+        SELECT Gene_Functions.gene_id, Gene_Functions.gene_description, Gene_Functions.gene_start, Gene_Functions.gene_end, SNP_Gene.snp_id, Gene_GO.go_id, Gene_GO.go_description
         FROM Gene_Functions
-        JOIN SNP_Gene ON Gene_Functions.gene_id = SNP_Gene.gene_id
+        LEFT JOIN SNP_Gene ON Gene_Functions.gene_id = SNP_Gene.gene_id LEFT JOIN Gene_GO ON Gene_Functions.gene_id = Gene_GO.gene_id
         WHERE Gene_Functions.gene_id = %s
         """, (gene_id,))
 
-        gene_info = cursor.fetchone()
-
-        if not gene_info:
-            return render_template("error.html", message="Gene not found")
+        rows = cursor.fetchall()
+        # Process the first row (if it exists)
+        if rows:
+            gene_info = rows[0]  # Get the first row
+            print("Gene info is:", gene_info)
+        else:
+            print("No gene found with ID:", gene_id)
 
         return render_template('gene_info.html', gene_info=gene_info)
 
@@ -132,177 +297,360 @@ def download_csv():
     connection = get_db_connection()
     if not connection:
         return render_template("error.html", message="Database connection failed")
-
+    
+    results = session.get("results", [])
+    
     try:
         def generate():
-            data = io.StringIO()  # Creates an in-memory buffer (StringIO object) to store CSV data temporarily.
-            writer = csv.writer(data) # Transform binary data to csv. Easy Peasy Lemon Squeeky.
-            
-            # Write header
-            writer.writerow(['SNP_ID', 'Chromosome', 'Genomic_Start' , 'Genomic_End', 'P_Value', 'Mapped Gene', 'Source'])
-            yield data.getvalue() # Sends the row to the user. Remember this is a different route.
-            data.seek(0) # reset and clear the buffer for the next row
-            data.truncate(0)
+            data = io.StringIO()  
+            writer = csv.writer(data)  
 
-            # Write rows from the results dictionary
+            # Write header
+            writer.writerow(['SNP_ID', 'Chromosome', 'Gene_Start', 'Gene_End', 'P_Value', 'Odds_Ratio', 'Mapped Gene', 'Link'])
+            yield data.getvalue()  
+            data.seek(0)  
+            data.truncate(0)  
+
+            # Write rows from the session-stored results
             for row in results:
                 writer.writerow([
                     row.get('snp_id', ''),
                     row.get('chromosome', ''),
-                    row.get('genomic_start', ''),
-                    row.get('genomic_end', ''),
+                    row.get('gene_start', ''),
+                    row.get('gene_end', ''),
                     row.get('p_value', ''),
+                    row.get('odds_ratio', ''),
                     row.get('gene_id', ''),
-                    row.get('source', ''),
+                    row.get('link', ''),
                 ])
-                yield data.getvalue() # Writes each row 
+                yield data.getvalue()
                 data.seek(0)
                 data.truncate(0)
 
         response = Response(
-            generate(), # This is the above function called.
-            mimetype='text/csv', # Tells the browser what type of file it is.
-            headers={'Content-Disposition': 'attachment; filename=snps_data.csv'} # Forces the browser to download the file with the name snps_data.csv
+            generate(),
+            mimetype='text/csv',
+            headers={'Content-Disposition': 'attachment; filename=snps_data.csv'}
         )
         return response
 
+    except Exception as e:
+        print(f"Error generating CSV: {e}")
+        return render_template("error.html", message="Download failed.")
+
+def generate_phenotype_table(phenotype_results):
+    try:
+        if not phenotype_results:
+            return pd.DataFrame(columns=["SNP ID", "Phenotype Name", "Phenotype Description", "P-Value"])
+
+        # Convert the raw results to a Pandas DataFrame
+        df = pd.DataFrame(phenotype_results)
+
+        # Retrieve phenotype names and descriptions from the database
+        connection = get_db_connection()
+        if connection:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("""
+                SELECT phenotype_id, phenotype_name, phenotype_description 
+                FROM Phenotype
+            """)
+            phenotype_info = cursor.fetchall()
+            cursor.close()
+            connection.close()
+
+            phenotype_df = pd.DataFrame(phenotype_info)
+
+            # Merge the phenotype information with the results
+            df = df.merge(phenotype_df, on="phenotype_id", how="left")
+
+            # Fill missing values for unknown phenotype names/descriptions
+            df["phenotype_name"] = df["phenotype_name"].fillna("Unknown Phenotype")
+            df["phenotype_description"] = df["phenotype_description"].fillna("No description available")
+
+        else:
+            df["phenotype_name"] = "Unknown Phenotype"
+            df["phenotype_description"] = "No description available"
+
+        # Keep only relevant columns for display
+        df = df[["snp_id", "phenotype_name", "phenotype_description", "p_values"]]
+        df.rename(columns={"snp_id": "SNP ID", "phenotype_name": "Phenotype Name", "phenotype_description": "Phenotype Description", "p_values": "p_values"}, inplace=True)
+
+        return df
+
+    except Exception as e:
+        print(f"Error generating phenotype table: {e}")
+        return pd.DataFrame(columns=["SNP ID", "Phenotype Name", "Phenotype Description", "P-Value"])
+
+
+    except Exception as e:
+        print(f"Error generating phenotype table: {e}")
+        return pd.DataFrame()
+   
+
+def fetch_fst_data():
+    """Fetches FST data from MySQL and returns it as a DataFrame."""
+    connection = get_db_connection()
+    if not connection:
+        return None
+
+    try:
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM Fixation")
+        rows = cursor.fetchall()
+        cursor.close()
+        connection.close()
+
+        if not rows:
+            print("No FST data found.")
+            return None
+        
+        # Convert fetched data into Pandas DataFrame
+        df = pd.DataFrame(rows)
+        return df
+
     except mysql.connector.Error as err:
         print(f"Database error: {err}")
-        return render_template("error.html", message="Download failed")
+        return None
+    
+def fetch_tajimas_d_data():
+    pop_id_to_population = {
+    6: "BEB",
+    7: "PJL",
+    2: "STU",  # Might be SLK
+}
+    """
+    Fetch Tajima's D data from the MySQL database and return it as a pandas DataFrame.
+    """
+    connection = get_db_connection()
+    #query = "SELECT * FROM all_tajimas"
+    if not connection:
+        return None
+    try:
+        cursor = connection.cursor(dictionary=True)
+        
+        # Query to get all Tajima's D data from the "all_tajimas" table
+        cursor.execute("""SELECT * FROM TajimasD""")
+        rows = cursor.fetchall()
+
+        if not rows:
+            return None
+        
+        for row in rows:
+            pop_id = row.get("pop_id")
+            if pop_id in pop_id_to_population:
+                row["POPULATION"] = pop_id_to_population[pop_id]
+            else:
+                row["POPULATION"] = "Unknown"  # Default value for unknown pop_ids
+        # Convert the result into a pandas DataFrame
+            if "bin_start" in row:
+                row["BIN_START_Mb"] = row["bin_start"] / 1_000_000  # Convert bp to Mb
+        df = pd.DataFrame(rows)
+
+        return df
+
+    except mysql.connector.Error as err:
+        print(f"Database error: {err}")
+        return None
     finally:
-        if 'cursor' in locals(): cursor.close()
+        if 'cursor' in locals() and cursor is not None: cursor.close()
         if connection.is_connected(): connection.close()
 
-def generate_manhattan_plot(results): # Truth be told this can be replaced with any other statistics you come up with. Improvement point: Add this to the search route so that all queries can be compared with one another.
-    try: # Not terribly important if you have a better idea, add whatever stats you see fit. Placeholder at the moment. Keep in mind io to temporarily play with the data here and base 64 need to be used to display the graph (Binary to URL).  
-        if not results:
-            return None
+def process_results_for_plotting():
+    """
+    Extracts relevant information from the session-stored `results` variable,
+    converts it into a DataFrame, and transforms gene start positions into megabases.
 
-        # Extract multiple SNPs from results
-        valid_data = []
-        for row in results:
-            try:
-                chrom = str(row.get("chromosome", ""))
-                pval = float(row.get("p_value", 1.0))
-                valid_data.append((chrom, pval))
-            except (ValueError, TypeError) as e:
-                app.logger.error(f"Invalid data row: {row} - Error: {str(e)}")
-                continue
+    Returns:
+        pd.DataFrame: Processed DataFrame with required columns.
+    """
+    # Retrieve results from session
+    results = session.get("results", [])  # Directly retrieve the list
 
-        if not valid_data:
-            return None
+    if not results:
+        print("No results found to process.")
+        return pd.DataFrame()  # Return an empty DataFrame if results are empty
 
-        chromosomes, p_values = zip(*valid_data)
-
-        # Convert chromosomes to numeric indices
-        unique_chrom = sorted(set(chromosomes), key=lambda x: (x.isdigit(), int(x) if x.isdigit() else x))
-        chrom_dict = {chrom: idx+1 for idx, chrom in enumerate(unique_chrom)}
-        numeric_chrom = [chrom_dict[chrom] for chrom in chromosomes]
-
-        # Create plot
-        plt.figure(figsize=(12, 6))
-        plt.scatter(numeric_chrom, -np.log10(p_values), 
-                    c=numeric_chrom, cmap='viridis', alpha=0.6, edgecolors='w', linewidth=0.5)
-        
-        plt.axhline(y=-np.log10(5e-8), color='r', linestyle='--', linewidth=1)
-
-        plt.colorbar(ticks=range(1, len(unique_chrom)+1), label='Chromosome', format=plt.FixedFormatter(unique_chrom))
-        plt.xlabel('Chromosome')
-        plt.ylabel('-log10(p-value)')
-        plt.title('Manhattan Plot')
-        plt.grid(True, alpha=0.3)
-
-        # Save to buffer
-        img_buffer = io.BytesIO()
-        plt.savefig(img_buffer, format='png', dpi=300, bbox_inches='tight')
-        plt.close()
-        img_buffer.seek(0)
-        
-        return f"data:image/png;base64,{base64.b64encode(img_buffer.read()).decode('utf-8')}" # The URL
-
-    except Exception as e:
-        app.logger.error(f"Plot generation failed: {str(e)}")
-        return None
-
-population_data = {
-    "population_code": ["SAS"] * 60,
-    "population_name": ["South Asian"] * 60,
-    "Ethnicity": ["BPB"] * 6 + ["N/A"] * 20 + ["BPB?"] * 34,
-    "snp_id": ["rs7903146", "rs10830963", "rs2972145", "rs7756992", "rs2191349", "rs9854769",
-               "rs7531962", "rs12463719", "rs7432739", "rs7626079", "rs62366901", "rs74790763",
-               "rs7765207", "rs73689877", "rs2980766", "rs62486442", "rs13257283", "rs2488597",
-               "rs2114824", "rs10748694", "rs7123361", "rs9568861", "rs76141923", "rs28790585",
-               "rs7261425", "rs2065703", "rs11708067", "rs9808924", "rs7766070", "rs10184004",
-               "rs2203452", "rs1260326", "rs35142762", "rs12655753", "rs17036160", "rs13094957",
-               "rs10916784", "rs61748094", "rs329122", "rs2714343", "rs6813195", "rs3775087",
-               "rs13130845", "rs7629245", "rs3887925", "rs13066678", "rs935112", "rs76263492",
-               "rs62259319", "rs1393202", "rs12746673", "rs59689207", "rs61818951", "rs7579323",
-               "rs1012311", "rs10864859", "rs13387347", "rs16849467", "rs9873519", "rs1514895",
-               ],
-    "allele_freq": [0.75, 0.29, 0.54, 0.41, 0.11, 0.32, 0.28, 0.64, 0.60, 0.94, 0.39, 0.12, 0.48, 0.34, 0.92, 0.84, 0.47, 0.42, 0.69, 0.15, 0.01, 0.33, 0.71, 0.15, 0.782, 0.43, 0.266, 0.741, 0.757, 0.754, 0.857, 0.889, 0.881, 0.76, 0.559, 0.967, 0.383, 0.463, 0.618, 0.201, 0.702, 0.24, 0.549, 0.44, 0.882, 0.039, 0.412, 0.052, 0.147, 0.142, 0.044, 0.755, 0.402, 0.941, 0.403, 0.637, 0.286, 0.721, 0.297, 0.164],
-    "sample_size": [22490] * 6 + [197391, 272634, 197391, 197391, 197080, 272634, 197391, 272634, 264876, 190682, 272634, 272634, 271738, 272634, 228651, 272634, 186208, 197391] * 3
-}
-
-# Create a DataFrame
-df = pd.DataFrame(population_data)
-def generate_population_plot(df):
-    try:
-        # Aggregate data by population
-        aggregated_data = df.groupby('population_name').agg({
-            'allele_freq': 'mean',
-            'sample_size': 'sum'
-        }).reset_index()
-
-        # Map population names to coordinates (latitude and longitude)
-        population_coords = {
-            "South Asian": {"lat": 20.5937, "lon": 78.9629}
+    # Process data safely
+    processed_data = [
+        {
+            "snp_id": entry.get("snp_id", ""),
+            "chromosome": entry.get("chromosome", ""),
+            "gene_id": entry.get("gene_id", ""),
+            "gene_start_mb": entry.get("gene_start", 0) / 1_000_000 if entry.get("gene_start") is not None else None,
+            "gene_end_mb": entry.get("gene_end", 0) / 1_000_000 if entry.get("gene_end") is not None else None
         }
+        for entry in results
+    ]
 
-        # Add coordinates to the DataFrame
-        aggregated_data['lat'] = aggregated_data['population_name'].map(lambda x: population_coords[x]['lat'])
-        aggregated_data['lon'] = aggregated_data['population_name'].map(lambda x: population_coords[x]['lon'])
+    # Convert to DataFrame
+    df_processed = pd.DataFrame(processed_data)
 
-        # Create the map using Plotly Express
-        fig = px.scatter_geo(aggregated_data,
-                             lat='lat',
-                             lon='lon',
-                             size='sample_size',
-                             color='allele_freq',
-                             hover_name='population_name',
-                             projection="natural earth",
-                             title='Worldwide Population Distribution')
+    return df_processed
 
-        # Optionally show the map in a browser (can be commented out in production)
-        # fig.show()
 
-        # Save the map to a file. Here, we're saving to the "templates" folder so that Flask's render_template can find it.
-       # fig.write_html("templates/map.html")
-       # return True
-        # Save the plot as a PNG image
-        # Convert the plot to a base64-encoded image
-        img_buffer = io.BytesIO()
-        fig.write_image(img_buffer, format="png")  # Use kaleido to save as PNG
-        img_buffer.seek(0)
-        img_base64 = base64.b64encode(img_buffer.read()).decode('utf-8')
-        img_url = f"data:image/png;base64,{img_base64}"
-        print("Figure generated successfully!")
-        return img_url  # Return the base64-encoded image URL
 
-    except Exception as e:
-        print(f"Error generating population plot: {e}")
-        return None
-# Define the route globally
-@app.route("/population_map")
-def population_map():
-    # Generate the population plot and get the base64-encoded image URL
-    population_map_url = generate_population_plot(df)
-    if not population_map_url:
-        return render_template("error.html", message="Failed to generate population map")
 
-    # Pass the image URL to the template
-    return render_template("index.html", population_map_url=population_map_url)
+@app.route("/search/tajima_d_by_chromosome", methods=["GET"]) #implementing route, uses search results to plot lines on graph
+def tajima_d_by_chromosome_route():
+    search_results_df = process_results_for_plotting()
+    chromosome = request.args.get("chromosome")  
+    population = request.args.get("population")  
+    
+
+    if not chromosome or not population:
+        return render_template("error.html", message="Please provide both chromosome and population.")
+
+    df = fetch_tajimas_d_data()
+    filtered_df = df[(df["chromosome"].astype(str) == str(chromosome)) & (df["POPULATION"] == population)]
+
+    if filtered_df.empty:
+        return render_template("error.html", message="Try searching first.")
+
+    img_url = plot_tajima_d_by_chromosome(chromosome, population, filtered_df, search_results_df)
+    tajima_histogram_url = plot_tajima_d_histogram(population, df) #Possibly can remove, seems to be repeated.
+    df_fst = fetch_fst_data()
+
+    # Generate image URLs
+    tajima_all_chromosomes_url = plot_tajima_d_all_chromosomes(population, df)
+    tajima_histogram_url = plot_tajima_d_histogram(population, df) #The repeat
+    fst_heatmap_url = plot_fst_heatmap(df_fst)
+
+
+    if not img_url:
+        return render_template("error.html", message="Failed to generate the plot.")
+
+    # Store session variables
+    session["chromosome"] = chromosome
+    session["population"] = population
+    session["tajima_histogram_url"] = tajima_histogram_url
+    session["tajima_all_chromosomes_url"] = tajima_all_chromosomes_url  
+    session["fst_heatmap_url"] = fst_heatmap_url
+
+    results = session.get("results", [])
+
+    # Render template with results
+    return render_template(
+        "index.html",
+        search_results=results,
+        selected_population=population,
+        chromosome=chromosome,
+        tajima_all_chromosomes_url=session.get("tajima_all_chromosomes_url"),
+        tajima_histogram_url=session.get("tajima_histogram_url"),
+        fst_heatmap_url=session.get("fst_heatmap_url"),
+        manhattan_url=img_url,
+        population_map_url=session.get("population_map_url"),  # Ensure this variable is stored in session
+        sidebar_hidden=True,
+        phenotype_table_html=session.get("phenotype_table_html", ""),
+        pop_results=session.get("pop_results", []),
+        error_message=None
+    )
+
+
+
+@app.route("/download/tajima_d_by_chromosome", methods=["GET"])
+def download_tajima_d_by_chromosome():
+    # Get chromosome and population from the query parameters
+    chromosome = request.args.get("chromosome")
+    population = request.args.get("population")
+
+    # Validate input
+    if not chromosome or not population:
+        return "Chromosome and population are required.", 400
+
+    # Fetch data
+    df = fetch_tajimas_d_data()
+
+    # Filter data based on chromosome and population
+    filtered_df = df[(df["chromosome"].astype(str) == str(chromosome)) & (df["POPULATION"] == population)]
+
+    # Check if data is available
+    if filtered_df.empty:
+        return "No data found for the specified chromosome and population.", 404
+
+    # Calculate summary statistics
+    gene_stats = filtered_df.groupby("gene_id").agg({"tajimas_d": ["mean", "std"]})
+    chromosome_stats = filtered_df.groupby("chromosome").agg({"tajimas_d": ["mean", "std"]})
+    gene_stats["tajimas_d", "std"] = gene_stats["tajimas_d", "std"].fillna(0)
+    chromosome_stats["tajimas_d", "std"] = chromosome_stats["tajimas_d", "std"].fillna(0)
+
+    # Create an in-memory text stream for CSV generation
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    # Write gene stats headers and data
+    writer.writerow(['gene_id', 'mean_tajimas_d', 'std_tajimas_d'])  # Column headers for gene stats
+    for index, row in gene_stats.iterrows():
+        writer.writerow([index, row[('tajimas_d', 'mean')], row[('tajimas_d', 'std')]])
+    
+    writer.writerow([])  # blank row to separate tables
+
+    writer.writerow(['chromosome', 'mean_tajimas_d', 'std_tajimas_d'])  # Column headers for chromosome stats
+    for index, row in chromosome_stats.iterrows():
+        writer.writerow([index, row[('tajimas_d', 'mean')], row[('tajimas_d', 'std')]])
+
+    # Set the file pointer to the start of the file for download
+    output.seek(0)
+
+    # Send the generated CSV as a response to download
+    return Response(output.getvalue(),
+                    mimetype="text/csv",
+                    headers={"Content-Disposition": f"attachment;filename={population}_tajima_stats.csv"})
+
+@app.route("/tajima_d_all_chromosomes/<population>")
+def tajima_d_all_chromosomes_route(population):
+    df_tajima = fetch_tajimas_d_data()
+    df_fst = fetch_fst_data()
+
+    # Generate image URLs
+    tajima_all_chromosomes_url = plot_tajima_d_all_chromosomes(population, df_tajima)
+    tajima_histogram_url = plot_tajima_d_histogram(population, df_tajima)
+    fst_heatmap_url = plot_fst_heatmap(df_fst)
+
+    # Store URLs in session to retain data across requests
+    session["tajima_all_chromosomes_url"] = tajima_all_chromosomes_url
+    session["tajima_histogram_url"] = tajima_histogram_url
+    session["fst_heatmap_url"] = fst_heatmap_url
+    session["population"] = population
+
+    return render_template("index.html", 
+                           manhattan_url=session.get("manhattan_url"),
+                           histogram_url=session.get("tajima_histogram_url"),
+                           fst_heatmap_url=session.get("fst_heatmap_url"),
+                           tajima_all_chromosomes_url=session.get("tajima_all_chromosomes_url"),
+                           population=population)
+
+
+
+@app.route("/download_fst_stats")
+def download_fst_stats():
+    df = fetch_fst_data()
+    if df is None or df.empty:
+        return render_template("error.html", message="No FST data available for download.")
+
+    # Compute FST mean and std per chromosome and comparison
+    fst_stats = df.groupby(["chromosome", "comparison"]).agg({"fst": ["mean", "std"]}).fillna(0)
+
+    # Reset column names for readability
+    fst_stats.columns = ['fst_mean', 'fst_std']
+    fst_stats.reset_index(inplace=True)
+
+     # Create in-memory CSV file
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    # Write header
+    writer.writerow(['chromosome', 'comparison', 'fst_mean', 'fst_std'])
+    # Write data rows
+    for index, row in fst_stats.iterrows():
+        writer.writerow([row['chromosome'], row['comparison'], row['fst_mean'], row['fst_std']])
+
+    # Reset file pointer to the beginning
+    output.seek(0)
+
+    # Return CSV file as a download response
+    return Response(output.getvalue(),
+                    mimetype="text/csv",
+                    headers={"Content-Disposition": "attachment;filename=fst_stats.csv"})
 
 if __name__ == "__main__": # Debugging in the command prompt
     app.run(debug=True, host="0.0.0.0", port=8080)
-
-

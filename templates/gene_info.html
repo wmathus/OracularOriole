@@ -4,18 +4,96 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gene Information: {{ gene_info.gene_id }}</title>
-    <!-- Add your CSS and other head elements here -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- AOS CSS for scroll animations -->
+    <link href="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(90deg, #0e2841, black);      
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+
+        .main-content {
+            padding: 20px;
+            margin-top: 60px;
+        }
+
+        .card {
+            background-color: rgba(255, 255, 255, 0.2); /* Semi-transparent background */
+            backdrop-filter: blur(10px); 
+            padding: 20px;
+            margin-top: 20px;
+            box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+        }
+
+        .footer {
+            padding: 20px;
+            text-align: center;
+            background: #ddd;
+            margin-top: 20px;
+        }
+
+        .btn-primary {
+            background-color: #0e2841;
+            border-color: transparent;
+            color: #fff;
+        }
+
+        .btn-primary:hover {
+            background-color: #1a3a5a;
+            color: white;
+            border-color: transparent;
+            transform: translateY(-3px);
+        }
+        .btn-outline-secondary {
+            background-color: transparent;
+            border: 2px solid #0e2841;
+            border-radius: 30px;
+            padding: 10px 20px;
+            color: #fff;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease;
+        }
+        .btn-outline-secondary:hover {
+            background-color: #0e2841;
+            color: white;
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+        }
+    </style>
 </head>
 <body>
-    <h1>Gene Information: {{ gene_info.gene_id }}</h1>
-    <div>
-        <p><strong>Description:</strong> {{ gene_info.gene_description }}</p>
-        <!--<p><strong>Function:</strong> {{ gene_info.function }}</p>-->
-        <!-- <p><strong>Chromosome:</strong> {{ gene_info.chromosome }}</p>-->
-        <p><strong>Start Position:</strong> {{ gene_info.gene_start }}</p>
-        <p><strong>End Position:</strong> {{ gene_info.gene_end }}</p>
-        <!-- Add more fields as needed -->
+
+    <!-- Main Content -->
+    <div class="container main-content">
+        <h1 class="mt-3">Gene Information: {{ gene_info.gene_id }}</h1>
+        
+        <!-- Gene Information Card with Left-to-Right Animation -->
+        <div class="card animated-card" data-aos="fade-right" data-aos-duration="1000">
+            <div class="card-body">
+                <p><strong>Gene Ontology ID:</strong> {{ gene_info.go_id if gene_info.go_id else 'Not available' }}</p>
+                <p><strong>Gene Ontology Description:</strong> {{ gene_info.go_description if gene_info.go_description else 'Not available' }}</p>
+                <p><strong>Gene Description:</strong> {{ gene_info.gene_description if gene_info.gene_description else 'Not available' }}</p>
+                <p><strong>Start Position:</strong> {{ gene_info.gene_start if gene_info.gene_start else 'Not available' }}</p>
+                <p><strong>End Position:</strong> {{ gene_info.gene_end if gene_info.gene_end else 'Not available' }}</p>
+            </div>
+        </div>
+
+        <!-- Back to Main Page Button -->
+        <div class="mt-3">
+            <a href="{{ url_for('search') }}" class="btn btn-primary">Back to Main</a>
+            <button onclick="history.back()" class="btn btn-outline-secondary">Go Back</button>
+        </div>
     </div>
-    <a href="/search">Back to Search</a>
+
+    <!-- AOS JS for scroll animations -->
+    <script src="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.js"></script>
+    <script>
+        AOS.init();
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

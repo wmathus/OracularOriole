@@ -11,26 +11,61 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            background-color: #f8f9fa;
+            color: #0e2841;
+            background: linear-gradient(45deg, #f36623, #f99f1f, white);      
+
         }
         .error-card {
             max-width: 600px;
             padding: 2rem;
-            border-radius: 10px;
-            box-shadow: 0 0 20px rgba(0,0,0,0.1);
-            background-color: white;
+            border-radius: 60px;
+            background-color: rgba(255, 255, 255, 0.2); /* Semi-transparent background */
+            backdrop-filter: blur(10px); 
         }
         .error-icon {
-            font-size: 4rem;
-            color: #dc3545;
+            width: 200px; /* Adjust the size of the image */
+            height: 200px; /* Adjust the size of the image */
             margin-bottom: 1rem;
+            border-radius: 50%; /* Optional: Make the image circular */
+            object-fit: cover; /* Ensure the image fits within the dimensions */
+        }
+        .btn-primary {
+            background-color: #0e2841;
+            border: none;
+            border-radius: 30px;
+            padding: 10px 20px;
+            color: white;
+
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+        }
+        .btn-primary:hover {
+            background-color: #1a3a5a;
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+        }
+        .btn-outline-secondary {
+            background-color: transparent;
+            border: 2px solid #0e2841;
+            border-radius: 30px;
+            padding: 10px 20px;
+            color: #0e2841;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease;
+        }
+        .btn-outline-secondary:hover {
+            background-color: #0e2841;
+            color: white;
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
         }
     </style>
 </head>
 <body>
     <div class="error-container">
         <div class="error-card text-center">
-            <div class="error-icon">⚠️</div>
+            <!-- Replace the error symbol with an image -->
+            <img src="http://localhost:5000/static/images/oriole.png" alt="Error Icon" class="error-icon">
             <h1 class="mb-3">Error Encountered</h1>
             <p class="lead text-muted mb-4">
                 {% if message %}

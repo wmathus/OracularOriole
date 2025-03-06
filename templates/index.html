@@ -1,9 +1,12 @@
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>T2D Oracle</title> <!-- Segment name -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         .full-screen-sidebar {
             height: 100vh;
@@ -11,8 +14,9 @@
             position: fixed;
             top: 0;
             left: 0;
-            color: #f4912f;
+            color: #0e2841;
             background-color: white;
+            background-image: url('/static/images/background.png'); /* Add the image as background */
             z-index: 1050;
             display: flex;
             align-items: center;
@@ -21,14 +25,16 @@
             transition: transform 0.6s ease-in-out;
             overflow-y: auto;
         }
-
         .hidden {
-            transform: translateY(-100%);
+        transform: translateY(-100%);
+ 
         }
 
         .main-content {
             padding: 20px;
             margin-top: 60px;
+            color: #0e2841;
+            border-radius: 10px;     
         }
 
         .back-button {
@@ -39,173 +45,475 @@
             display: none;
         }
 
-        .btn-primary {
-            background-color: #87CEFA;
-            border-color: #87CEFA;
-            color: #fff;
+        .btn-success {
+            background-color: #0e2841;
+            color:#fff;
+            border-color:transparent;
         }
-
+        .btn-success:hover{
+            background-color:#1a3a5a;
+            color: white;
+            border-color: transparent;
+      }
         .table-responsive {
             overflow-x: auto;
+        }
+        .form-select {
+            border-radius: 60px;
+        }
+        /* Back Button */
+        .back-button {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            z-index: 1100;
+            display: none;
+            background-color: #0e2841;
+            color: 	#fff;
+            border: none;
+            border-radius: 30px;
+            padding: 10px 20px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .back-button:hover {
+            background-color: #1a3a5a;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+        }
+
+        .btn-primary {
+            background-color: #0e2841;
+            border: none;
+            border-radius: 30px;
+            padding: 10px 20px;
+            color: white;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+        }
+        .btn-warning {
+            background-color: #d2aeeb;
+            border: none;
+            border-radius: 30px;
+            padding: 10px 20px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+        }
+        .btn-warning:hover {
+            background-color: #8062b8;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+        }
+
+        .btn-primary:hover {
+            background-color: #1a3a5a;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+        }
+
+
+        .img-world-plot p {
+            font-family: "Arial", sans-serif;
+            font-size: 16px;
+            line-height: 1.6;
+            color: #333; 
+            background-color: #f8f4f4; 
+            padding: 15px;
+            border-left: 4px solid #2752c7; 
+            border-radius: 5px;
+            box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.1); 
+        }
+  
+        .img-world-plot i {
+            color: #f36623; /* Highlighting the "Note" */
+            font-weight: bold;
+        }
+    /* Footer */
+        .footer {
+            text-align: center;
+            margin-top: 20px;
+            color: #0e2841;
+            font-size: 0.9rem;
+        }
+
+
+        .alert {
+            border-radius: 30px;
+            background-color: #ffe599;
+        } 
+        .github-icon {
+            font-size: 48px; /* Adjust size as needed */
+            color: #0e2841; 
+            transition: color 0.3s ease; /* Smooth color transition */
+        }
+
+        .github-icon:hover {
+            color: #6640c0; /* GitHub's brand color on hover */
+        }
+        .footer a {
+            color: #0e2841;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .footer a:hover {
+            text-decoration: underline;
+            color: #0a1e30;
         }
     </style>
 </head>
 <body>
 
     <!-- Full screen Sidebar  -->
-    <div class="full-screen-sidebar" id="sidebar">
+    <div class="full-screen-sidebar {% if sidebar_hidden %}hidden{% endif %}" id="sidebar">
         <div class="container text-center">
-            <h2 class="mt-4">T2D Genomic Explorer: Ancestry, Selection, and Functional Insights for <i> Type 2 Diabetes</i></i></h2>
+            <h2 class="mt-4">T2D Oracle: Ancestry, Selection, and Functional Insights for <i> Type 2 Diabetes</i></i></h2>
             <p>Use the dropdown menu below to search SNPs by SNP ID, genomic location, or mapped gene.</p>
            
 
-<!--            <h4 class="mt-3">Controls</h4>
-                <div class="mb-3">
-                    <label class="form-label">P-value Threshold</label>
-                    <input type="number" step="any" name="p_value" class="form-control" 
-                           value="{{ p_value_threshold | default('') }}">
-                </div> 
--->            
+
             <form method="POST" action="/search">
                 <hr>
                 <h4>Search SNPs</h4>
+                {% if error_message %}
+                <div class="alert alert-danger" role="alert">
+                    {{ error_message }}
+                </div>
+                {% endif %}
                 <div class="row g-2">
                     <div class="col-md-6">
                         <label class="form-label">Search by:</label>
                         <select id="searchType" name="searchType" class="form-select">
                             <option value="snp" {% if request.form.searchType == 'snp' %}selected{% endif %}>SNP ID</option>
                             <option value="gene" {% if request.form.searchType == 'gene' %}selected{% endif %}>Gene Name</option>
-                            <option value="chromosome" {% if request.form.searchType == 'chromosome' %}selected{% endif %}>Chromosomal Location</option>
+                            <option value="chromosome" {% if request.form.searchType == 'chromosome' %}selected{% endif %}>Genomic Location</option>
                         </select>
                     </div>
 
                     <div class="col-md-6">
-                        <label class="form-label">Search</label>
+                        <label class="form-label">Search</label> 
                         <input type="text" name="search_term" class="form-control" 
-                               placeholder="e.g. rs35261542-A; CDKAL1; 6p22.3"
+                               placeholder="e.g. rs35261542; CDKAL1; (chromosome number:basepair start-basepair end; chromosome number:snp basepair)"
                                value="{{ request.form.search_term | default('') }}">
                     </div>
                 </div>
-                <button type="submit" class="btn btn-primary mt-3">Search</button>
+                <button class="btn btn-success mt-4">Search</button>
+                
             </form>
-
-            {% if search_results %}
-                <div class="mt-3 table-responsive">
-                    <h5>Search Results</h5>
-                    <table class="table table-bordered">
-                        <thead>
-                            <tr>
-                                <th>SNP ID</th>
-                                <th>Chromosome</th>
-                                <th>Genomic start</th>
-                                <th>Genomic end</th>
-                                <th>P-Value</th>
-                                <th>Mapped Gene</th>
-                                <th>Source</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for row in search_results %}
-                            <tr>
-                                <td>{{ row.snp_id }}</td>
-                                <td>{{ row.chromosome | default('N/A') }}</td>
-                                <td>{{ row.genomic_start | default('N/A') }}</td>
-                                <td>{{ row.genomic_end | default('N/A') }}</td>
-                                <td>{{ row.p_value | default('N/A') }}</td>
-                                <td>
-                                    {% if row.gene_id %}
-                                    <a href="{{ url_for('gene_info', gene_id=row.gene_id) }}">{{ row.gene_id }}</a>
-                                    {% else %}
-                                     N/A
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {% if row.link %}
-                                    <a href="{{ row.link }}" target="_blank">Source</a>
-                                    {% else %}
-                                    N/A
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                    <button class="btn btn-warning btn-lg mt-2" onclick="downloadCSV()">Download CSV</button>
-                </div>
-            {% endif %}
-
-            <div class="mt-3">
-                <small>Last Updated: {{ last_update }}</small>
-            </div>
-
-            <button class="btn btn-success mt-4" onclick="hideSidebar()">Continue to Analysis ↓</button>
+        <button class="btn btn-success mt-4" onclick="hideSidebar()">Continue to Analysis ↓</button>
         </div>
     </div>
-
-    <button class="btn btn-secondary back-button" id="backButton" onclick="showSidebar()">← Back to Main Page</button>
+   
+        <!-- Back to Main Page Button -->
+        <div class="mt-3">
+            <button onclick="showSidebar()" class="btn btn-primary">← Back to Main Page</button>
+        </div>
+    </div>
+    
 
     <div class="container main-content" id="main-content">
         <h1 class="mt-3">Type 2 Diabetes Genomic Statistics</h1>
         
+        <!-- Navigation Tabs -->
         <ul class="nav nav-tabs">
-            <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#snp">SNP Analysis</a></li>
-            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#population">Population Distribution</a></li>
-        </ul>
-
+            <li class="nav-item">
+                <a class="nav-link active" data-bs-toggle="tab" href="#snp" data-bs-toggle="tooltip" title="SNP Analysis">
+                    <i class="fas fa-dna"></i> SNP Analysis
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" data-bs-toggle="tab" href="#population" data-bs-toggle="tooltip" title="Population Distribution">
+                    <i class="fas fa-users"></i> Population Distribution
+                </a>
+            </li>
+        </ul>   
         <div class="tab-content">
-            <div class="tab-pane fade show active" id="snp">
-                <h3 class="mt-3">SNP Analysis</h3>
-                {% if manhattan_url %}
-                <img src="{{ manhattan_url }}" class="img-fluid" alt="Manhattan Plot">
-                {% else %}
-                <p>No Manhattan plot available</p>
-                {% endif %}
-            </div>
+                <!-- Row for side-by-side cards -->
+                <div id="searchResults">
+                    <!-- Left Column: Manhattan Plot -->
+                    <div class="col-md-auto" data-aos="fade-up" data-aos-duration="1000">
+                        {% if search_results %}
+                        <div class="mt-3 table-responsive">
+                            <h5>Search Results</h5>
+                            <table class="table table-bordered">
+                                <thead>
+                                    <tr>
+                                        <th>SNP ID</th>
+                                        <th>Chromosome</th>
+                                        <th>Genomic start</th>
+                                        <th>Genomic end</th>
+                                        <th>P-Value</th>
+                                        <th>Odds Ratio</th>
+                                        <th>Mapped Gene</th>
+                                        <th>Reference</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for row in search_results %}
+                                    <tr>
+                                        <td>
+                                            {% if row.ensembl_url%}
+                                            <a href="{{ row.ensembl_url }}" target="_blank">{{ row.snp_id }}</a>
+                                            {% else %}
+                                            {{ row.snp_id }}
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ row.snp_id }}</td>
+                                        <td>{{ row.chromosome | default('N/A') }}</td>
+                                        <td>{{ row.gene_start | default('N/A') }}</td>
+                                        <td>{{ row.gene_end | default('N/A') }}</td>
+                                        <td>{{ row.p_value | default('N/A') }}</td>
+                                        <td>{{ row.odds_ratio | default('N/A') }}</td>
+                                        <td>
+                                            {% if row.gene_id %}
+                                            <a href="{{ url_for('gene_info', gene_id=row.gene_id) }}">{{ row.gene_id }}</a>
+                                            {% else %}
+                                             N/A
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if row.link %}
+                                            <a href="{{ row.link }}" target="_blank">Reference</a>
+                                            {% else %}
+                                            N/A
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                            <div class="d-flex justify-content-center">
+                                <button class="btn btn-warning btn-lg mt-2" onclick="downloadCSV()">Download CSV</button>
+                            </div>
 
-            <div class="tab-pane fade" id="population">
-                <h3 class="mt-3">Population Distribution</h3>
-                <div class="text-center mt-3">
-                    <a href="{{ url_for('population_map') }}" class="btn btn-info btn-lg">Explore Population Statistics</a>
-                </div>
-                <div id="distribution-plot" class="text-center mt-3">
-                    <!-- Display the population map image -->
-                    {% if population_map_url %}
-                        <img src="{{ population_map_url }}" alt="Population Map" class="img-fluid">
-                    {% else %}
-                        <p>No population map available</p>
+                        </div>
                     {% endif %}
                 </div>
-                <div id="distribution-plot" class="text-center mt-3">
-                    <p class="text-muted">Population distribution visualization coming soon</p>
+
+                       
+                            <h3>Phenotype Table</h3>
+                            {% if phenotype_table_html %}
+                            <div class="table-responsive">
+                                {{ phenotype_table_html | safe }}
+                            </div>
+                            {% else %}
+                            <p>No phenotype information available</p>
+                            {% endif %}
+                        
+                            
+                    <p class="mt-3">
+                        This table presents the associated phenotypes of SNPs, derived from multi-ancestry data.
+                        The <strong>(+)</strong> and <strong>(-)</strong> symbols next to p-values indicate the direction of association with the corresponding phenotype.
+                    </p>
+                    <p>    
+                        This information is inferred from the Type 2 Diabetes Knowledge Portal. Since odds ratios and beta values are not currently
+                        stored in our database, further details can be found <a href="https://t2d.hugeamp.org/" target = "_blank">here</a>.
+                    </p>                 
+        </div>
+
+        <div class="tab-pane fade" id="population" role="tabpanel" aria-labelledby="population-tab">
+
+            <!-- Added Section -->
+            <div class="row">
+                <div class="leftcolumn">
+                    
+                        <div class="img-world-plot">
+                        {% if population_map_url %}
+                            <h2 class="mt-5">Population Distribution World Map for Queried SNPs</h2>
+                            <div class="map-container">
+                                <img src="{{ population_map_url }}" alt="Population Map" class="img-fluid">
+                            </div>
+                        {% else %}
+                            <p class="text-danger mt-5">No population map available.</p>
+                        {% endif %}
+                    
+                    
+                        </div>
+
+                    <div class="container">
+                        <h3 class="mt-5">Search Tajima's D by queried chromosome and select a population from the drop down below</h3>
+                
+                        <!-- Form to select population and search -->
+                        <form id="searchForm" method="GET" action="/search/tajima_d_by_chromosome">
+                            <div class="form-group">
+                                <!-- Hidden input for chromosome, populated dynamically from Flask -->
+                                <input type="hidden" id="chromosome" name="chromosome" value="{{ chromosome }}">
+                            </div>
+                
+                            <div class="form-group">
+                                <label for="population"><strong>Select Population:</strong></label>
+                                <select class="form-control" id="population" name="population" required>
+                                    <option value="" selected disabled>Select an option</option> 
+                                    <option value="BEB">Bengali from Bangladesh (BEB)</option>
+                                    <option value="PJL">Punjabi from Lahore, Pakistan (PJL)</option>
+                                    <option value="STU">Sri Lankan Tamil (STU)</option>
+                                </select>
+                            </div>
+                
+                            <button type="submit" class="btn btn-primary">Apply</button>
+                        </form>
+                
+                        {% if manhattan_url %}
+                            <div class="mt-5">
+                                <h2>Tajima's D by Chromosome</h2>
+                                <img src="{{ manhattan_url }}" alt="Tajima's D by Chromosome" class="img-fluid">
+                            </div>
+                        
+                                <!-- Download Button -->
+                            <div class="mt-3">
+                                <a href="/download/tajima_d_by_chromosome?chromosome={{ chromosome }}&population={{ selected_population }}" class="btn btn-success">
+                                    Download Summary Statistics CSV for Tajima's D
+                            </a>
+                            </div>
+                        {% endif %}
+                        {% if message %}
+                            <div class="alert alert-danger mt-5">{{ message }}</div>
+                        {% endif %}
+                        
+                            <div class="img-world-plot">
+                                {% if tajima_all_chromosomes_url %}
+                                    <h2 class="mt-5">Population Distribution Map</h2>
+                                    <div class="map-container">
+                                        <img src="{{ tajima_all_chromosomes_url }}" alt="TajimasD for All Chromosomes Manhattan Plot" class="img-fluid">
+                                    </div>
+                                    
+                                {% else %}
+                                    <p class="text-danger mt-5">No manhattan plot for all chromosomes available.</p>
+                                {% endif %}
+    
+                            <div class="img-world-plot">
+                                {% if tajima_histogram_url %}
+                                    <h2 class="mt-5">Tajima Histogram</h2>
+                                    <div class="map-container">
+                                        <img src="{{ tajima_histogram_url }}" alt="TajimasD Histogram" class="img-fluid">
+                                    </div>
+
+                                {% else %}
+                                    <p class="text-danger mt-5">No TajimasD histogram available.</p>
+                                {% endif %}
+    
+                            <div class="img-world-plot">
+                                {% if fst_heatmap_url %}
+                                    <h2 class="mt-5">FST Heatmap</h2>
+                                    <div class="map-container">
+                                        <img src="{{ fst_heatmap_url }}" alt="FST Heatmap" class="img-fluid">
+                                    </div>
+                                    <p>    
+                                        <i>Note:</i> The heatmap displays pairwise FST values for different population comparisons across multiple chromosomes. 
+                                        The y-axis represents chromosome numbers, while the x-axis indicates different population comparisons: beb_jpt, beb_pjl, beb_stu, pjl_jpt, pjl_stu, and stu_jpt. 
+                                        Each cell contains a numerical value representing the mean FST for a given chromosome and population pair. 
+                                        The color gradient ranges from blue to red, with blue indicating lower FST values and red indicating higher values. 
+                                        The highest FST values are observed on chromosome 9 for pjl_jpt (0.456) and stu_jpt (0.442). 
+                                        Other chromosomes show varying FST values, with several comparisons displaying values close to zero. 
+                                        The color bar on the right provides a reference for interpreting the color scale.
+                                    </p> 
+                                    <div class="mt-3">
+                                        <a href="/download_fst_stats" class="btn btn-success">
+                                            Download Summary Statistics Text File for FST
+                                    </a>
+                                    </div>
+                             
+                                {% else %}
+                                    <p class="text-danger mt-5"> FST heatmap available.</p>
+                                {% endif %}                        
+                        
+                       
+                    </div>
+           
+<!-- Footer Section -->
+            <footer class="footer">
+                <div class="footer-content">
+                    <h2>Queen Mary University of London</h2>
+                    <div class="footer-links">
+                        <h3>Follow us</h3>
+                        <a href="https://github.com/OracularOriole" target="_blank">
+                            <i class="fab fa-github github-icon"></i> GitHub
+                        </a>
+                    </div>
+
+                    <div class="footer-links">
+                        <h3>Our Code</h3>
+                        <a href="https://github.com/wmathus/OracularOriole/blob/MAINFRAME/latest_ver.py" target="_blank">
+                            <i class="material-icons">code</i> Source Code
+                        </a>
+                </div>                    
+                    <h7>&copy; 2025 Bioinformatics Master's Students. All rights reserved.</h7>
+        
+                    <h7 class="text-muted">
+                        This website explores the relationship between T2D phenotypes and ancestry.
+                        You can find more details about our project on our GitHub page.
+                    </h7>
+
+
+                    <h7 class="text-muted">If you encounter any issues, please contact us through our GitHub page.</h7>
                 </div>
-            </div>
+            </footer>
         </div>
     </div>
-<!-- This bit is complicated but basically we just hide the buttons that do the scrolling in the relevant section. The styling gets a bit complicated. I'll handle it. -->
-    <script> 
-        function hideSidebar() {
-            let sidebar = document.getElementById("sidebar");
-            let backButton = document.getElementById("backButton");
 
-            sidebar.classList.add("hidden");
-            backButton.style.display = "block";
-            document.getElementById("main-content").scrollIntoView({ behavior: "smooth" });
+    <script>        
+// Function to hide the sidebar and show the back button
+        function hideSidebar() {
+            fetch('/hide_sidebar')  // Calls the Flask route to update session
+                .then(() => {
+                    const sidebar = document.getElementById("sidebar");
+                    sidebar.classList.add("hidden");  // Hide using CSS
+                    setTimeout(() => {
+                        sidebar.style.display = "none";
+                        document.getElementById("main-content").scrollIntoView({ behavior: "smooth" });
+                    }, 600);
+                });
         }
 
         function showSidebar() {
-            let sidebar = document.getElementById("sidebar");
-            let backButton = document.getElementById("backButton");
-
-            sidebar.classList.remove("hidden");
-            backButton.style.display = "none";
-            window.scrollTo({ top: 0, behavior: "smooth" });
+            fetch('/show_sidebar')  // Calls the Flask route to reset session state
+                .then(() => {
+                    const sidebar = document.getElementById("sidebar");
+                    sidebar.style.display = "flex";
+                    setTimeout(() => {
+                        sidebar.classList.remove("hidden");
+                    }, 50);
+                });
         }
+        
+        document.getElementById("populationDropdown").addEventListener("change", function() {
+            const population = this.value;
+            const chromosome = document.getElementById("chromosome").value;
 
+    // Ensure both chromosome and population are selected or valid
+            if (!chromosome || !population) {
+                alert("Please select both a chromosome and a population.");
+                return; // Don't proceed with the redirect if any value is missing
+            }
+
+            // Construct the search URL
+            const searchUrl = `/search/tajima_d_by_chromosome?chromosome=${chromosome}&population=${population}`;
+
+            // Construct the download URL
+            const downloadUrl = `/download/tajima_d_by_chromosome?chromosome=${chromosome}&population=${population}`;
+
+            // Redirect to the search URL
+        window.location.href = searchUrl;
+    });
         function downloadCSV() {
             window.location.href = "/download_csv";
         }
+
     </script>
 
+    <!-- AOS JS for scroll animations -->
+    <script src="https://cdn.jsdelivr.net/npm/aos@2.3.4/dist/aos.js"></script>
+    <script>
+        AOS.init();
+    </script>
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+    </script>
+
 </body>
 </html>
