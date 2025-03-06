@@ -7,7 +7,7 @@ from flask import Flask
 from config import DB_CONFIG
 app = Flask(__name__)
 
-def get_db_connection(): # Same as Aida's code only it returns an error if a connection isn't made. Better for future use.
+def get_db_connection(): 
     """Database connection with error handling"""
     try:
         return mysql.connector.connect(**DB_CONFIG)
@@ -60,10 +60,6 @@ def fetch_population_id(query, search_type):
 
 def generate_population_df(population_results):
     """Generates a DataFrame with allele frequencies and sample sizes."""
-    if not population_results:
-        print("🔴 No population results! Returning empty DataFrame.")
-        return pd.DataFrame()
-
     connection = get_db_connection()
     if not connection:
         return pd.DataFrame()
@@ -85,7 +81,6 @@ def generate_population_df(population_results):
         """)
 
         df = pd.DataFrame(cursor.fetchall())
-        print(f"🟢 Population DataFrame: {df}")  # Debugging
 
         return df
 
@@ -151,7 +146,6 @@ def generate_population_plot(population_df):
             color="allele_frequency",
             hover_name="pop_name",
             projection="natural earth",
-            title="Population Distribution in Asia"
         )
 
         # Save plot as base64-encoded image
