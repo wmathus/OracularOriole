@@ -266,7 +266,10 @@
                                     {% endfor %}
                                 </tbody>
                             </table>
-                            <button class="btn btn-warning btn-mg mt-2" onclick="downloadCSV()">Download CSV</button>
+                            <div class="d-flex justify-content-center">
+                                <button class="btn btn-warning btn-lg mt-2" onclick="downloadCSV()">Download CSV</button>
+                            </div>
+
                         </div>
                     {% endif %}
                 </div>
@@ -289,7 +292,6 @@
         </div>
 
         <div class="tab-pane fade" id="population">
-            <h3 class="mt-3">Population Distribution</h3>
 
             <!-- Added Section -->
             <div class="row">
@@ -338,7 +340,7 @@
                         
                                 <!-- Download Button -->
                             <div class="mt-3">
-                                <a href="/download/tajima_d_by_chromosome?chromosome={{ chromosome }}&population={{ population }}" class="btn btn-success">
+                                <a href="/download/tajima_d_by_chromosome?chromosome={{ chromosome }}&population={{ selected_population }}" class="btn btn-success">
                                     Download Summary Statistics CSV for Tajima's D
                             </a>
                             </div>
@@ -444,14 +446,29 @@
         
         document.getElementById("populationDropdown").addEventListener("change", function() {
             const population = this.value;
-            const chromosome = document.getElementById("chromosomeInput").value;  // Replace with actual chromosome input
+            const chromosome = document.getElementById("chromosome").value;
 
-    // Construct the URL with both chromosome and population
-            const url = `/search/tajima_d_by_chromosome?chromosome=${chromosome}&population=${population}`;
+    // Ensure both chromosome and population are selected or valid
+            if (!chromosome || !population) {
+                alert("Please select both a chromosome and a population.");
+                return; // Don't proceed with the redirect if any value is missing
+            }
 
-    // Redirect to the new URL
-            window.location.href = url;
-        });
+            // Construct the search URL
+            const searchUrl = `/search/tajima_d_by_chromosome?chromosome=${chromosome}&population=${population}`;
+
+            // Construct the download URL
+            const downloadUrl = `/download/tajima_d_by_chromosome?chromosome=${chromosome}&population=${population}`;
+
+            // Update the download button's href attribute
+            const downloadButton = document.getElementById("downloadButton");
+            if (downloadButton) {
+                downloadButton.href = downloadUrl;
+            }
+
+    // Redirect to the search URL
+    window.location.href = searchUrl;
+        
         function downloadCSV() {
             window.location.href = "/download_csv";
         }
