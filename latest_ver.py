@@ -17,6 +17,8 @@ from flask import session, redirect, url_for
 import seaborn as sns
 from plotting_functions import plot_tajima_d_by_chromosome, plot_fst_heatmap, plot_tajima_d_all_chromosomes, plot_tajima_d_histogram
 from flask_session import Session
+from matplotlib.lines import Line2D
+from matplotlib.ticker import MultipleLocator
 
 app = Flask(__name__)
 app.secret_key = "oriole"
@@ -456,6 +458,7 @@ def process_results_for_plotting(): #Important foor the x-axis line for the SNP 
     Returns:
         pd.DataFrame: Processed DataFrame with required columns.
     """
+    #print("This is before the function: \n", results) #Debugging
     if not results:
         print("No results found to process.")
         return pd.DataFrame()  # Return an empty DataFrame if results are empty
@@ -468,13 +471,16 @@ def process_results_for_plotting(): #Important foor the x-axis line for the SNP 
 
     # Convert dictionaries to DataFrame
     df_processed = pd.DataFrame(processed_data)
-
+    #print("\n This is the Data being processed from the PROCESSING FUNCTION: \n", df_processed). Debugging 
+    #print("This is after the function: \n", results) #Debugging
     return df_processed
 
-@app.route("/search/tajima_d_by_chromosome", methods=["GET"])
+@app.route("/search/tajima_d_by_chromosome", methods=["GET"]) #implementing route, uses search results to plot lines on graph
 def tajima_d_by_chromosome_route():
+    search_results_df = process_results_for_plotting()
     chromosome = request.args.get("chromosome")  
     population = request.args.get("population")  
+    
 
     if not chromosome or not population:
         return render_template("error.html", message="Please provide both chromosome and population.")
@@ -485,13 +491,13 @@ def tajima_d_by_chromosome_route():
     if filtered_df.empty:
         return render_template("error.html", message="No data found for the specified chromosome and population.")
 
-    img_url = plot_tajima_d_by_chromosome(chromosome, population, filtered_df)
-    tajima_histogram_url = plot_tajima_d_histogram(population, df)
+    img_url = plot_tajima_d_by_chromosome(chromosome, population, filtered_df, search_results_df)
+    tajima_histogram_url = plot_tajima_d_histogram(population, df) #Possibly can remove, seems to be repeated.
     df_fst = fetch_fst_data()
 
     # Generate image URLs
     tajima_all_chromosomes_url = plot_tajima_d_all_chromosomes(population, df)
-    tajima_histogram_url = plot_tajima_d_histogram(population, df)
+    tajima_histogram_url = plot_tajima_d_histogram(population, df) #The repeat
     fst_heatmap_url = plot_fst_heatmap(df_fst)
 
 
@@ -523,6 +529,60 @@ def tajima_d_by_chromosome_route():
         pop_results=session.get("pop_results", []),
         error_message=None
     )
+
+# @app.route("/search/tajima_d_by_chromosome", methods=["GET"]) #THIS is how it was before, as a backup, REMOVE IN FINAL
+# def tajima_d_by_chromosome_route():
+#     chromosome = request.args.get("chromosome")  
+#     population = request.args.get("population")  
+#     #search_results_df = process_results_for_plotting()
+
+#     if not chromosome or not population:
+#         return render_template("error.html", message="Please provide both chromosome and population.")
+
+#     df = fetch_tajimas_d_data()
+#     filtered_df = df[(df["chromosome"].astype(str) == str(chromosome)) & (df["POPULATION"] == population)]
+
+#     if filtered_df.empty:
+#         return render_template("error.html", message="No data found for the specified chromosome and population.")
+
+#     img_url = plot_tajima_d_by_chromosome(chromosome, population, filtered_df)
+#     tajima_histogram_url = plot_tajima_d_histogram(population, df) #Possibly can remove, seems to be repeated.
+#     df_fst = fetch_fst_data()
+
+#     # Generate image URLs
+#     tajima_all_chromosomes_url = plot_tajima_d_all_chromosomes(population, df)
+#     tajima_histogram_url = plot_tajima_d_histogram(population, df) #The repeat
+#     fst_heatmap_url = plot_fst_heatmap(df_fst)
+
+
+#     if not img_url:
+#         return render_template("error.html", message="Failed to generate the plot.")
+
+#     # Store session variables
+#     session["chromosome"] = chromosome
+#     session["population"] = population
+#     session["tajima_histogram_url"] = tajima_histogram_url
+#     session["tajima_all_chromosomes_url"] = tajima_all_chromosomes_url  
+#     session["fst_heatmap_url"] = fst_heatmap_url
+
+#     results = session.get("results", [])
+
+#     # Render template with results
+#     return render_template(
+#         "index.html",
+#         search_results=results,
+#         selected_population=population,
+#         chromosome=chromosome,
+#         tajima_all_chromosomes_url=session.get("tajima_all_chromosomes_url"),
+#         tajima_histogram_url=session.get("tajima_histogram_url"),
+#         fst_heatmap_url=session.get("fst_heatmap_url"),
+#         manhattan_url=img_url,
+#         population_map_url=session.get("population_map_url"),  # Ensure this variable is stored in session
+#         sidebar_hidden=True,
+#         phenotype_table_html=session.get("phenotype_table_html", ""),
+#         pop_results=session.get("pop_results", []),
+#         error_message=None
+#     )
 
 @app.route("/download/tajima_d_by_chromosome", methods=["GET"])
 def download_tajima_d_by_chromosome():
