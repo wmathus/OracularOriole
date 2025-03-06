@@ -92,6 +92,11 @@ def search():
                 WHERE SNPs.snp_id = %s
             """, (query,))
             results = cursor.fetchall()
+            for snp in results:
+                snp_id = snp["snp_id"]
+                ensembl_url = f"https://www.ensembl.org/Homo_sapiens/Variation/HighLD?db=core;v={snp_id}"
+                snp['ensembl_url'] = ensembl_url
+
 
             # Fetch phenotype data for the given SNP
             cursor2 = connection.cursor(dictionary=True, buffered=True)
@@ -112,7 +117,10 @@ def search():
                 WHERE SNP_Gene.gene_id = %s
             """, (query,))
             results = cursor.fetchall()
-
+            for snp in results:
+                snp_id = snp["snp_id"]
+                ensembl_url = f"https://www.ensembl.org/Homo_sapiens/Variation/HighLD?db=core;v={snp_id}"
+                snp['ensembl_url'] = ensembl_url
             # Fetch phenotype data for the SNPs related to the gene
             snp_ids = [row["snp_id"] for row in results]
             if snp_ids:
@@ -177,6 +185,11 @@ def search():
                 """, (chromosome_n,))
 
             results = cursor.fetchall()
+            for snp in results:
+                snp_id = snp["snp_id"]
+                ensembl_url = f"https://www.ensembl.org/Homo_sapiens/Variation/HighLD?db=core;v={snp_id}"
+                snp['ensembl_url'] = ensembl_url
+            
             
             # Fetch phenotype data for the SNPs
             snp_ids = [row["snp_id"] for row in results]
