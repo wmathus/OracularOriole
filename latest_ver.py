@@ -129,7 +129,7 @@ def search():
         elif search_type == "chromosome":
             # Parse the query into chromosome and position range
             parts = query.split(":")
-            chromosome = parts[0]
+            chromosome_n = parts[0]
             
             if len(parts) == 1:
                start_pos, end_pos = None, None 
@@ -165,7 +165,7 @@ def search():
                     AND (Gene_Functions.gene_start BETWEEN %s AND %s
                     OR Gene_Functions.gene_end BETWEEN %s AND %s
                     OR (Gene_Functions.gene_start <= %s AND Gene_Functions.gene_end >= %s))
-                """, (chromosome, start_pos, end_pos, start_pos, end_pos, start_pos, end_pos))
+                """, (chromosome_n, start_pos, end_pos, start_pos, end_pos, start_pos, end_pos))
             else:
                 # Fetch all SNPs and genes on the specified chromosome
                 cursor.execute("""
@@ -174,7 +174,7 @@ def search():
                     JOIN SNP_Gene ON SNPs.snp_id = SNP_Gene.snp_id
                     JOIN Gene_Functions ON SNP_Gene.gene_id = Gene_Functions.gene_id
                     WHERE SNPs.chromosome = %s
-                """, (chromosome,))
+                """, (chromosome_n,))
 
             results = cursor.fetchall()
             
@@ -201,15 +201,17 @@ def search():
 
         # Filter and append population names
         
-
+        table_df = generate_phenotype_table(phenotype_results)
         # Generate DataFrame with allele frequencies, sample sizes, SNP IDs, and population names
         pop_results = generate_population_df(population_results)
         population_map_url = generate_population_plot(pop_results)
         # Convert phenotype results to HTML table
-        phenotype_table_html = pd.DataFrame(phenotype_results).to_html(classes="table table-striped", index=False)
+        phenotype_table_html = table_df.to_html(classes="table table-striped", index=False)
         session["pop_results"] = pop_results
         session["population_map_url"] = population_map_url
         session["results"] = results 
+        session["chromosome"] = chromosome
+        
         
 
         session["phenotype_table_html"] = phenotype_table_html
@@ -523,48 +525,52 @@ def tajima_d_by_chromosome_route():
     )
 
 @app.route("/download/tajima_d_by_chromosome", methods=["GET"])
-def download_taj_by_chromosome():
+def download_tajima_d_by_chromosome():
+    # Get chromosome and population from the query parameters
     chromosome = request.args.get("chromosome")
     population = request.args.get("population")
 
+    # Validate input
     if not chromosome or not population:
         return "Chromosome and population are required.", 400
 
+    # Fetch data
     df = fetch_tajimas_d_data()
-    filtered_df = df[(df["chromosome"] == int(chromosome)) & (df["POPULATION"] == population)]
 
-    # Calculate gene and chromosome stats, filling N/A with 0
+    # Filter data based on chromosome and population
+    filtered_df = df[(df["chromosome"].astype(str) == str(chromosome)) & (df["POPULATION"] == population)]
+
+    # Check if data is available
+    if filtered_df.empty:
+        return "No data found for the specified chromosome and population.", 404
+
+    # Calculate summary statistics
     gene_stats = filtered_df.groupby("gene_id").agg({"tajimas_d": ["mean", "std"]})
     chromosome_stats = filtered_df.groupby("chromosome").agg({"tajimas_d": ["mean", "std"]})
     gene_stats["tajimas_d", "std"] = gene_stats["tajimas_d", "std"].fillna(0)
     chromosome_stats["tajimas_d", "std"] = chromosome_stats["tajimas_d", "std"].fillna(0)
 
-    # Convert both gene_stats and chromosome_stats to CSV format
-    output = io.StringIO()  # Create an in-memory text stream
-    writer = csv.writer(output)
-
-    # Write headers for gene stats
-    writer.writerow(['gene_id', 'mean_tajimas_d', 'std_tajimas_d'])
+    # Convert summary statistics to a text file
+    output = io.StringIO()
+    output.write("Gene Stats:\n")
+    output.write("gene_id\tmean_tajimas_d\tstd_tajimas_d\n")
     for index, row in gene_stats.iterrows():
-        writer.writerow([index, row[('tajimas_d', 'mean')], row[('tajimas_d', 'std')]])
+        output.write(f"{index}\t{row[('tajimas_d', 'mean')]}\t{row[('tajimas_d', 'std')]}\n")
 
-    writer.writerow([])  # Blank row to separate the two tables
-
-    # Write headers for chromosome stats
-    writer.writerow(['chromosome', 'mean_tajimas_d', 'std_tajimas_d'])
+    output.write("\nChromosome Stats:\n")
+    output.write("chromosome\tmean_tajimas_d\tstd_tajimas_d\n")
     for index, row in chromosome_stats.iterrows():
-        writer.writerow([index, row[('tajimas_d', 'mean')], row[('tajimas_d', 'std')]])
+        output.write(f"{index}\t{row[('tajimas_d', 'mean')]}\t{row[('tajimas_d', 'std')]}\n")
 
-    # Set the file pointer to the start of the file
+    # Reset the buffer position to the beginning
     output.seek(0)
 
-    # Send the generated CSV as a response to download
+    # Return the text file as a downloadable response
     return Response(
         output.getvalue(),
-        mimetype="text/csv",
-        headers={"Content-Disposition": f"attachment;filename={population}_tajima_by_chromosome_{chromosome}_stats.csv"}
+        mimetype="text/plain",
+        headers={"Content-Disposition": f"attachment;filename={population}_tajima_by_chromosome_{chromosome}_stats.txt"}
     )
-
 
 @app.route("/tajima_d_all_chromosomes/<population>")
 def tajima_d_all_chromosomes_route(population):
@@ -589,40 +595,7 @@ def tajima_d_all_chromosomes_route(population):
                            tajima_all_chromosomes_url=session.get("tajima_all_chromosomes_url"),
                            population=population)
 
-@app.route("/download_taj_population/<population>")
-def download_tajima_stats(population):
-    df = fetch_tajimas_d_data()
-    filtered_df = df[df["POPULATION"] == population] #Filters by population, this is for the histogram and manhattan for the entire population. 
-    gene_stats = filtered_df.groupby("gene_id").agg({"tajimas_d": ["mean", "std"]})
-    chromosome_stats = filtered_df.groupby("chromosome").agg({"tajimas_d": ["mean", "std"]})
 
-    # Fill NaN values for standard deviation (std) where there is no variance
-    gene_stats["tajimas_d", "std"] = gene_stats["tajimas_d", "std"].fillna(0)
-    chromosome_stats["tajimas_d", "std"] = chromosome_stats["tajimas_d", "std"].fillna(0)
-
-    output = io.StringIO()
-
-    # Write gene statistics
-    output.write("Tajima's D Statistics by Gene\n")
-    output.write("=====================================\n")
-    output.write("Gene_ID\tMean_Tajima_D\tStd_Tajima_D\n")
-    for index, row in gene_stats.iterrows():
-        output.write(f"{index}\t{row[('tajimas_d', 'mean')]:.6f}\t{row[('tajimas_d', 'std')]:.6f}\n")
-
-    output.write("\n")  # Blank line separator
-
-    # Write chromosome statistics
-    output.write("Tajima's D Statistics by Chromosome\n")
-    output.write("=====================================\n")
-    output.write("Chromosome\tMean_Tajima_D\tStd_Tajima_D\n")
-    for index, row in chromosome_stats.iterrows():
-        output.write(f"{index}\t{row[('tajimas_d', 'mean')]:.6f}\t{row[('tajimas_d', 'std')]:.6f}\n")
-
-    output.seek(0)
-
-    return Response(output.getvalue(),
-                    mimetype="text/plain",
-                    headers={"Content-Disposition": f"attachment; filename={population}_tajima_stats.txt"})
 
 @app.route("/download_fst_stats")
 def download_fst_stats():
