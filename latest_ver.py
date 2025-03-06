@@ -610,27 +610,28 @@ def download_tajima_d_by_chromosome():
     gene_stats["tajimas_d", "std"] = gene_stats["tajimas_d", "std"].fillna(0)
     chromosome_stats["tajimas_d", "std"] = chromosome_stats["tajimas_d", "std"].fillna(0)
 
-    # Convert summary statistics to a text file
+    # Create an in-memory text stream for CSV generation
     output = io.StringIO()
-    output.write("Gene Stats:\n")
-    output.write("gene_id\tmean_tajimas_d\tstd_tajimas_d\n")
+    writer = csv.writer(output)
+
+    # Write gene stats headers and data
+    writer.writerow(['gene_id', 'mean_tajimas_d', 'std_tajimas_d'])  # Column headers for gene stats
     for index, row in gene_stats.iterrows():
-        output.write(f"{index}\t{row[('tajimas_d', 'mean')]}\t{row[('tajimas_d', 'std')]}\n")
+        writer.writerow([index, row[('tajimas_d', 'mean')], row[('tajimas_d', 'std')]])
+    
+    writer.writerow([])  # blank row to separate tables
 
-    output.write("\nChromosome Stats:\n")
-    output.write("chromosome\tmean_tajimas_d\tstd_tajimas_d\n")
+    writer.writerow(['chromosome', 'mean_tajimas_d', 'std_tajimas_d'])  # Column headers for chromosome stats
     for index, row in chromosome_stats.iterrows():
-        output.write(f"{index}\t{row[('tajimas_d', 'mean')]}\t{row[('tajimas_d', 'std')]}\n")
+        writer.writerow([index, row[('tajimas_d', 'mean')], row[('tajimas_d', 'std')]])
 
-    # Reset the buffer position to the beginning
+    # Set the file pointer to the start of the file for download
     output.seek(0)
 
-    # Return the text file as a downloadable response
-    return Response(
-        output.getvalue(),
-        mimetype="text/plain",
-        headers={"Content-Disposition": f"attachment;filename={population}_tajima_by_chromosome_{chromosome}_stats.txt"}
-    )
+    # Send the generated CSV as a response to download
+    return Response(output.getvalue(),
+                    mimetype="text/csv",
+                    headers={"Content-Disposition": f"attachment;filename={population}_tajima_stats.csv"})
 
 @app.route("/tajima_d_all_chromosomes/<population>")
 def tajima_d_all_chromosomes_route(population):
@@ -670,21 +671,23 @@ def download_fst_stats():
     fst_stats.columns = ['fst_mean', 'fst_std']
     fst_stats.reset_index(inplace=True)
 
-    # Create an in-memory text file
+     # Create in-memory CSV file
     output = io.StringIO()
+    writer = csv.writer(output)
 
-    # Write FST statistics in text format
-    output.write("FST Statistics by Chromosome and Comparison\n")
-    output.write("===========================================\n")
-    output.write("Chromosome\tComparison\tMean_FST\tStd_FST\n")
-    for _, row in fst_stats.iterrows():
-        output.write(f"{row['chromosome']}\t{row['comparison']}\t{row['fst_mean']:.6f}\t{row['fst_std']:.6f}\n")
+    # Write header
+    writer.writerow(['chromosome', 'comparison', 'fst_mean', 'fst_std'])
+    # Write data rows
+    for index, row in fst_stats.iterrows():
+        writer.writerow([row['chromosome'], row['comparison'], row['fst_mean'], row['fst_std']])
 
+    # Reset file pointer to the beginning
     output.seek(0)
 
+    # Return CSV file as a download response
     return Response(output.getvalue(),
-                    mimetype="text/plain",
-                    headers={"Content-Disposition": "attachment; filename=fst_stats.txt"})
+                    mimetype="text/csv",
+                    headers={"Content-Disposition": "attachment;filename=fst_stats.csv"})
 
 if __name__ == "__main__": # Debugging in the command prompt
     app.run(debug=True, host="0.0.0.0", port=8080)
