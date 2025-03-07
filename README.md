@@ -1,26 +1,57 @@
-# OracularOriole  
+# T2D Oracle: A Web Tool for Type 2 Diabetes Genomics  
 
-## Overview  
-OracularOriole is a web-based software tool designed to analyze **Type 2 Diabetes (T2D) genetic variants** and their relationship with **positive selection in South Asian populations**. This project is part of the **MSc Bioinformatics Software Development Group Project 2025**.  
+## Project Overview  
+T2D Oracle is a web-based application designed to retrieve and analyze genetic variants associated with Type 2 Diabetes (T2D). It integrates SNP data with population genomics and functional annotations to explore genetic susceptibility, with a focus on South Asian populations.  
 
 ## Features  
-- **Retrieve genetic variant (SNP) information** based on rsID, genomic coordinates, or mapped genes.  
-- **Integrate T2D-associated variants** with population genomic and functional data.  
-- **Generate visualizations** for positive selection signals in chosen populations.  
-- **Provide downloadable analysis results** for further exploration.  
-- **Handle missing queries gracefully.**  
+- **SNP Lookup**: Search for T2D-associated SNPs by ID, genomic location, or mapped gene.  
+- **Genomic Insights**: Displays SNP positions, association statistics, and mapped genes.  
+- **Population Genetics**: Integrates selection summary statistics for South Asian populations.  
+- **Functional Annotations**: Retrieves gene ontology terms for selected genes.  
+- **Visualization**: Generates plots for genomic selection signals.  
+- **Data Export**: Allows users to download summary statistics.  
 
-## Installation Guide  
+## Project Structure  
+T2D-Oracle/ ├── SQL_Data/ │ ├── readmesql.txt # Database connection details
+│ ├── sql8762368.sql # Database schema
+│ ├── flask_session/ # Session storage
+│ ├── images/ # Image assets
+│ ├── background.png
+│ ├── oriole.png
+│ ├── templates/ # HTML templates
+│ ├── error.html # Error handling page
+│ ├── gene_info.html # Gene information page
+│ ├── index.html # Main UI page
+│ ├── .gitignore # Git ignore file
+├── README.md # Project documentation
+├── config.py # Configuration settings
+├── latest_ver.py # Main application logic
+├── plotting_functions.py # Data visualization functions
+├── pop_func.py # Population genetics calculations
+├── requirements.txt # Python dependencies
 
-### **Setting Up the Project on Your Computer**  
-If you want to run this project locally, follow these steps:  
+## Installation & Setup  
 
-1. **Check if you have Git installed** (run this command in your terminal or command prompt):  
-   ```sh
-   git --version
+### Clone the Repository  
+```sh
+git clone https://github.com/your-repo/T2D-Oracle.git
+cd T2D-Oracle
 
-2. **Download the zip file**
+### Ensure Python is installed, then run:
+pip install -r requirements.txt
 
-3. Use this command to download all the libraries and packages needed to run the code.
-   ```sh
-   pip install -r requirements.txt
+
+### Configure the Database
+Connect to the MySQL database using the credentials in readmesql.txt, OR execute sql8762368.sql to set up the schema on local.
+
+### Run the Application
+python latest_ver.py
+The web app will be available at http://192.168.0.49:8080
+
+## Data Sources
+####GWAS Catalog: EBI GWAS
+####T2D Knowledge Portal: T2D Portal
+####International Genome Samples Resource: IGSR
+
+Contributors
+Developed as part of the MSc Bioinformatics Software Development Group Project at Queen Mary University of London.
