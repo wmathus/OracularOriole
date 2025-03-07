@@ -112,8 +112,6 @@ def generate_population_plot(population_df):
         print("Error: population_df is empty.")
         return None
 
-    print("Population DataFrame:")
-    print(population_df)
 
     # Convert input data to DataFrame
     df = pd.DataFrame(population_df)
