@@ -21,4 +21,6 @@ If you want to run this project locally, follow these steps:
 
 2. **Download the zip file**
 
-3. Use pip install -r requirements.txt to download all the libraries and packages needed to run the code.
+3. Use this command to download all the libraries and packages needed to run the code.
+   ```sh
+   pip install -r requirements.txt
