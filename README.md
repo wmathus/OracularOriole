@@ -36,6 +36,7 @@ T2D-Oracle/ ├── SQL_Data/ │ ├── readmesql.txt # Database connectio
 ```sh
 git clone https://github.com/your-repo/T2D-Oracle.git
 cd T2D-Oracle
+```
 
 ### Ensure Python is installed, then run:
 pip install -r requirements.txt
@@ -53,5 +54,5 @@ The web app will be available at http://192.168.0.49:8080
 ####T2D Knowledge Portal: T2D Portal
 ####International Genome Samples Resource: IGSR
 
-Contributors
+## Contributors
 Developed as part of the MSc Bioinformatics Software Development Group Project at Queen Mary University of London.
