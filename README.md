@@ -50,9 +50,9 @@ python latest_ver.py
 The web app will be available at http://192.168.0.49:8080
 
 ## Data Sources
-####GWAS Catalog: EBI GWAS
-####T2D Knowledge Portal: T2D Portal
-####International Genome Samples Resource: IGSR
+#### GWAS Catalog: EBI GWAS
+#### T2D Knowledge Portal: T2D Portal
+#### International Genome Samples Resource: IGSR
 
 ## Contributors
 Developed as part of the MSc Bioinformatics Software Development Group Project at Queen Mary University of London.
